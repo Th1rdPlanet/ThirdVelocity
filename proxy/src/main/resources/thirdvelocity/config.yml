@@ -1,0 +1,48 @@
+# ThirdVelocity — config.yml
+# Основные настройки ядра. Остальное: protection.yml, intel.yml, reputation.yml,
+# alts.yml, clients.yml, messages.yml. Перечитать: /tv reload (кроме storage).
+
+# Полностью выключить ядро ThirdVelocity (прокси работает как обычный Velocity).
+enabled: true
+
+storage:
+  # sqlite:data.db (путь относительно папки thirdvelocity), mysql://host:3306/db,
+  # mariadb://host:3306/db или postgresql://host:5432/db.
+  # Общая MySQL/PostgreSQL позволяет нескольким прокси делить баны и историю входов.
+  url: "sqlite:data.db"
+  # Логин и пароль для сетевых БД. Переменные окружения THIRDVELOCITY_DB_USER и
+  # THIRDVELOCITY_DB_PASSWORD имеют приоритет — так пароль не хранится в файле.
+  user: ""
+  password: ""
+  # Соединений к сетевой БД (SQLite всегда использует одно).
+  pool-size: 4
+  # Как часто подтягивать баны, выданные другими прокси (секунды).
+  sync-seconds: 10
+
+bans:
+  # Применять баны самим ядром. false — хранилище и Java API работают, но решать будет
+  # ваш плагин (например, собственная система наказаний).
+  enforce: true
+  # Что делать с забаненным IP при подключении:
+  # DROP — закрыть TCP сразу после accept(), без обработки протокола (минимум нагрузки);
+  # MESSAGE — пропустить до входа и показать экран бана с причиной.
+  address-action: DROP
+  # Кикать игроков онлайн, попавших под новый бан.
+  kick-online: true
+  # Синхронизация IP-банов с файрволом ядра Linux (nftables/ipset), чтобы пакеты
+  # отбрасывались ещё до Java. Команда выполняется без shell, плейсхолдеры: {ip} (CIDR),
+  # {v} (4 или 6), {family} (ipv4/ipv6). Нужны права (CAP_NET_ADMIN или sudo-правило).
+  firewall:
+    enabled: false
+    on-ban: ["nft", "add", "element", "inet", "thirdvelocity", "banned{v}", "{ {ip} }"]
+    on-unban: ["nft", "delete", "element", "inet", "thirdvelocity", "banned{v}", "{ {ip} }"]
+
+commands:
+  # Встроенная команда /tv. Её можно выключить целиком, если баны и проверки делает
+  # ваш плагин через Java API.
+  enabled: true
+  name: "tv"
+  aliases: ["thirdvelocity"]
+  # Отключённые подкоманды: ban, unban, bans, baninfo, check, alts, ip, history, client,
+  # geoip, lists, attack, unblock, reload.
+  disabled: []

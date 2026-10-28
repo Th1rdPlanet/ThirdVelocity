@@ -16,12 +16,14 @@ application {
 tasks {
     withType<Checkstyle> {
         exclude("**/com/velocitypowered/proxy/protocol/packet/**")
+        // ThirdVelocity sources keep their own style; upstream files stay under checkstyle.
+        exclude("**/ru/moonlightproject/**")
     }
 
     jar {
         manifest {
-            attributes["Implementation-Title"] = "Velocity"
-            attributes["Implementation-Vendor"] = "Velocity Contributors"
+            attributes["Implementation-Title"] = "ThirdVelocity"
+            attributes["Implementation-Vendor"] = "Th1rdPlanet & Velocity Contributors"
             attributes["Multi-Release"] = "true"
         }
     }
@@ -89,6 +91,11 @@ fill {
 dependencies {
     implementation(project(":velocity-api"))
     implementation(project(":velocity-native"))
+    implementation(project(":thirdvelocity-api"))
+    implementation(libs.sqlite.jdbc)
+    implementation(libs.mariadb.jdbc)
+    implementation(libs.postgresql.jdbc)
+    implementation(libs.maxmind.db)
 
     implementation(libs.bundles.log4j)
     implementation(libs.kyori.ansi)

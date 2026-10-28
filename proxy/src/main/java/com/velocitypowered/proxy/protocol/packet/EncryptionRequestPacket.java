@@ -41,6 +41,20 @@ public class EncryptionRequestPacket implements MinecraftPacket {
     this.publicKey = publicKey.clone();
   }
 
+  public boolean isShouldAuthenticate() {
+    return shouldAuthenticate;
+  }
+
+  /**
+   * Sets whether a 1.20.5+ client must contact the Mojang session server. ThirdVelocity sends
+   * {@code false} to encrypt offline-mode connections without authentication.
+   *
+   * @param shouldAuthenticate whether the client authenticates with Mojang
+   */
+  public void setShouldAuthenticate(boolean shouldAuthenticate) {
+    this.shouldAuthenticate = shouldAuthenticate;
+  }
+
   public byte[] getVerifyToken() {
     return verifyToken.clone();
   }

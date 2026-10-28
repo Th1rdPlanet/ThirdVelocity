@@ -60,6 +60,12 @@ snakeyaml = "org.yaml:snakeyaml:2.7"
 spotbugs-annotations = "com.github.spotbugs:spotbugs-annotations:4.10.5"
 terminalconsoleappender = "net.minecrell:terminalconsoleappender:1.3.0"
 
+# ThirdVelocity
+sqlite-jdbc = "org.xerial:sqlite-jdbc:3.53.4.0"
+mariadb-jdbc = "org.mariadb.jdbc:mariadb-java-client:3.5.11"
+postgresql-jdbc = "org.postgresql:postgresql:42.7.14"
+maxmind-db = "com.maxmind.db:maxmind-db:4.2.0"
+
 [bundles]
 configurate3 = ["configurate3-hocon", "configurate3-yaml", "configurate3-gson"]
 configurate4 = ["configurate4-hocon", "configurate4-yaml", "configurate4-gson"]

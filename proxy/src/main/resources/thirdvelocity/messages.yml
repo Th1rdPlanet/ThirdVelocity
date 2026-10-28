@@ -1,0 +1,13 @@
+# ThirdVelocity — messages.yml (MiniMessage). Плейсхолдеры вставляются как текст.
+
+ban-screen: "<red><b>Вы заблокированы</b></red>\n\n<gray>Причина: <white><reason></white>\n<gray>Срок: <white><expires></white>\n\n<dark_gray>Бан #<id>"
+ban-permanent: "навсегда"
+ban-no-reason: "не указана"
+bad-host: "<red>Подключайтесь по адресу сервера, а не по IP."
+bad-name: "<red>Недопустимый ник: <white><name>"
+denied-name: "<red>Этот ник запрещён."
+too-many-names: "<red>Слишком много аккаунтов с вашего адреса. Попробуйте позже."
+client-kick: "<red>Ваш клиент запрещён на сервере: <white><rule>"
+client-kick-custom: "<red><message>"
+staff-alts: "<gold>[TV]</gold> <white><player></white> <gray>связан с: <yellow><alts>"
+staff-evasion: "<red>[TV] Возможный обход бана:</red> <white><player></white> <gray>связан с забаненным <red><banned></red> <dark_gray>(<alts>)"

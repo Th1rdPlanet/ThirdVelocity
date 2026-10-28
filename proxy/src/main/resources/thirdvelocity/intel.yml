@@ -1,0 +1,66 @@
+# ThirdVelocity — intel.yml
+# GeoIP-базы и IP-списки. Ручное обновление: /tv geoip update и /tv lists update.
+
+geoip:
+  enabled: true
+  # Папка с базами внутри thirdvelocity/.
+  directory: geoip
+  # Как часто перекачивать базы (30s, 15m, 12h, 7d).
+  update-interval: 7d
+  # Кэш результатов поиска.
+  cache-size: 50000
+  # Для MaxMind GeoLite2: Account ID и License key (https://www.maxmind.com/en/geolite2/signup).
+  # Переменные окружения MAXMIND_ACCOUNT_ID и MAXMIND_LICENSE_KEY имеют приоритет.
+  maxmind-account-id: ""
+  maxmind-license-key: ""
+  # Роли баз: country, asn, city. По умолчанию — бесплатные DB-IP Lite (CC BY 4.0,
+  # ключ не нужен, обновляются раз в месяц). {yyyy}/{mm} — текущий месяц; если файла
+  # ещё нет, берётся предыдущий. format: RAW, GZIP, TAR_GZ.
+  databases:
+    country:
+      enabled: true
+      url: "https://download.db-ip.com/free/dbip-country-lite-{yyyy}-{mm}.mmdb.gz"
+      format: GZIP
+    asn:
+      enabled: true
+      url: "https://download.db-ip.com/free/dbip-asn-lite-{yyyy}-{mm}.mmdb.gz"
+      format: GZIP
+    city:
+      enabled: false
+      url: "https://download.db-ip.com/free/dbip-city-lite-{yyyy}-{mm}.mmdb.gz"
+      format: GZIP
+    # Пример MaxMind (замените url выше, включите maxmind-auth):
+    # country:
+    #   url: "https://download.maxmind.com/geoip/databases/GeoLite2-Country/download?suffix=tar.gz"
+    #   format: TAR_GZ
+    #   maxmind-auth: true
+
+ip-lists:
+  enabled: true
+  directory: lists
+  update-interval: 6h
+  # Каждый список назначает теги, а reputation.yml → tags даёт очки за тег.
+  # format: PLAIN (IP, CIDR или диапазон a-b в строке; # и ; — комментарии) или
+  # SPAMHAUS_JSON. Список без url читается из file (свой локальный список).
+  lists:
+    tor:
+      url: "https://check.torproject.org/torbulkexitlist"
+      tags: [tor]
+    vpn:
+      url: "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/vpn/ipv4.txt"
+      tags: [vpn]
+    hosting:
+      url: "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv4.txt"
+      tags: [hosting]
+    firehol-level1:
+      url: "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"
+      tags: [blocklist]
+    spamhaus-drop:
+      enabled: false
+      url: "https://www.spamhaus.org/drop/drop_v4.json"
+      format: SPAMHAUS_JSON
+      tags: [blocklist]
+    custom:
+      enabled: false
+      file: custom.txt
+      tags: [custom]

@@ -1,0 +1,62 @@
+# ThirdVelocity — clients.yml
+# Определение клиентов, загрузчиков модов, модов и лаунчеров. Всё, что присылает клиент,
+# можно подделать, поэтому используйте это как подсказку, а не доказательство.
+# Посмотреть игрока: /tv client <ник>.
+
+enabled: true
+log-detections: true
+
+# Неймспейсы каналов, которые не считаются модами.
+ignored-namespaces:
+  - minecraft
+  - fabric
+  - fabric-api
+  - forge
+  - fml
+  - neoforge
+  - c
+  - velocity
+  - bungeecord
+  - quilt
+  - qsl
+
+# Правила. Каждое присутствующее условие должно совпасть:
+#   brand / channel / mod / host — регулярные выражения (brand клиента, любой канал,
+#   любой мод, сырой адрес handshake с маркерами Forge);
+#   uuid-mismatch: true — UUID из пакета входа не равен стандартному offline-UUID ника
+#   (так ведут себя некоторые лаунчеры и сторонние клиенты; только offline-режим);
+#   min-protocol / max-protocol — диапазон версий протокола.
+# kind: client, launcher, mod, loader или своё. action: none, flag (подозрительный —
+# Selene покажет CAPTCHA), kick (message — текст причины).
+rules:
+  - id: lunar
+    kind: client
+    label: "Lunar Client"
+    brand: "(?i)^lunarclient"
+  - id: feather
+    kind: client
+    label: "Feather Client"
+    brand: "(?i)feather"
+  - id: labymod
+    kind: client
+    label: "LabyMod"
+    channel: "(?i)^labymod"
+  - id: badlion
+    kind: client
+    label: "Badlion Client"
+    channel: "(?i)^badlion:"
+  - id: essential
+    kind: mod
+    label: "Essential"
+    channel: "(?i)^essential:"
+  - id: nonstandard-uuid
+    kind: launcher
+    label: "Лаунчер с нестандартным UUID"
+    uuid-mismatch: true
+  # Пример запрета мода по его каналу:
+  # - id: freecam
+  #   kind: mod
+  #   label: "Freecam"
+  #   mod: "(?i)^freecam$"
+  #   action: kick
+  #   message: "Freecam запрещён на сервере"

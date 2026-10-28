@@ -1,0 +1,46 @@
+# ThirdVelocity — alts.yml
+# Поиск твинков (альтов) и связанных IP. Каждая причина связи даёт вес 0..1, веса
+# объединяются как независимые улики: 1 - (1-w1)(1-w2)… Команды: /tv alts, /tv ip.
+
+enabled: true
+# Сколько дней хранить историю входов.
+retention-days: 180
+# Подсеть для причины SAME_SUBNET (учитывается только при совпадении AS).
+subnet-prefix-v4: 24
+subnet-prefix-v6: 48
+
+weights:
+  same-ip: 0.8
+  # Оба аккаунта входили с этого IP с подтверждённым паролем.
+  same-ip-authenticated: 0.95
+  same-subnet: 0.2
+  # Совпадает отпечаток клиента (brand, моды, язык, настройки скина, лаунчер).
+  same-fingerprint: 0.3
+
+# Если IP делят больше N аккаунтов (NAT, мобильный оператор, VPN), вес делится на долю.
+shared-address-threshold: 4
+# То же для одинакового отпечатка (ванильные клиенты часто совпадают).
+shared-fingerprint-threshold: 3
+# Множитель веса для IP с тегами анонимайзеров из intel.yml.
+anonymizer-factor: 0.3
+anonymizer-tags: [tor, vpn, hosting]
+
+# Глубина связей: 2 — «твинк твинка».
+max-depth: 2
+transitive-factor: 0.5
+min-confidence: 0.25
+max-results: 50
+
+# Окно для подсчёта разных ников с одного IP (сигнал names-per-address).
+names-per-address-window: 1h
+
+# Уведомлять персонал (право thirdvelocity.notify.alts) и консоль при входе игрока
+# со связями от notify-confidence.
+notify-staff: true
+notify-confidence: 0.7
+
+ban-evasion:
+  # Связь с забаненным аккаунтом от этой уверенности считается обходом бана.
+  confidence: 0.85
+  # none, notify, kick (показать бан связанного аккаунта), ban (выдать такой же бан).
+  action: notify

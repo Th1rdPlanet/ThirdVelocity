@@ -1,0 +1,63 @@
+# ThirdVelocity — reputation.yml
+# Оценка IP: сумма очков сигналов. FLAG — подозрительный (Selene покажет CAPTCHA),
+# DENY — соединение отклоняется ядром. Отрицательные очки повышают доверие.
+# Проверить IP: /tv check <ip|игрок>.
+
+enabled: true
+# Отклонять DENY самим ядром (иначе вердикт только доступен через API).
+enforce-deny: true
+# Не оценивать локальные и частные адреса (127/8, 10/8, 192.168/16, 100.64/10 и т.п.).
+exempt-private-networks: true
+# Сколько секунд кэшировать оценку.
+cache-seconds: 10
+
+thresholds:
+  flag: 30
+  deny: 100
+
+# Очки за теги IP-списков из intel.yml.
+tags:
+  tor: 60
+  vpn: 35
+  hosting: 25
+  blocklist: 100
+  custom: 0
+
+# Страны. mode: NONE, DENY (очки получают страны из list), ALLOW (очки получают все,
+# кого нет в list).
+countries:
+  mode: NONE
+  list: []
+  points: 40
+
+# Очки за конкретные автономные системы, например "AS16509": 30.
+asn: {}
+
+# Если GeoIP загружена, но страна не определилась.
+unknown-geo: 0
+
+history:
+  # IP раньше не встречался.
+  new-address: 5
+  # С этого IP уже был подтверждённый вход (плагин авторизации сообщил об успехе).
+  authenticated-address: -15
+  # IP использовал забаненный аккаунт.
+  banned-account-address: 50
+
+behaviour:
+  connections-per-minute: { threshold: 20, points: 20 }
+  names-per-address: { threshold: 3, points: 25 }
+
+# События, о которых сообщают плагины через ReputationService.report(ip, event).
+# Очки затухают вдвое каждые half-life.
+events:
+  half-life: 30m
+  default: 0
+  points:
+    auth.failed: 10
+    captcha.failed: 15
+    auth.success: -10
+    login.bad-name: 15
+    login.too-many-names: 20
+    handshake.bad-host: 10
+    client.kicked: 20

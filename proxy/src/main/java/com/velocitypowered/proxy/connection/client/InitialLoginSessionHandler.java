@@ -58,6 +58,9 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import ru.moonlightproject.dev.thirdvelocity.proxy.ThirdVelocityCore;
+import ru.moonlightproject.dev.thirdvelocity.proxy.protection.ConnectionFilter;
+import ru.moonlightproject.dev.thirdvelocity.proxy.util.IpKeys;
 
 /**
  * Handles authenticating the player to Mojang's servers.
@@ -77,6 +80,8 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
   private @MonotonicNonNull ServerLoginPacket login;
   private byte[] verify = EMPTY_BYTE_ARRAY;
   private LoginState currentState = LoginState.LOGIN_PACKET_EXPECTED;
+  // ThirdVelocity: offline-mode login encrypted without Mojang authentication (1.20.5+).
+  private boolean offlineEncryption;
   private final boolean forceKeyAuthentication;
 
   InitialLoginSessionHandler(VelocityServer server, MinecraftConnection mcConnection,
@@ -121,6 +126,18 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
     inbound.setPlayerKey(playerKey);
     this.login = packet;
 
+    // ThirdVelocity: name policy, name/UUID bans and per-address name limits before any event.
+    final ConnectionFilter filter = ThirdVelocityCore.filterOrNull();
+    if (filter != null) {
+      final Component denied = filter.login(IpKeys.of(mcConnection.getRemoteAddress()),
+          packet.getUsername(), packet.getHolderUuid(), mcConnection.getProtocolVersion(),
+          inbound.getRawVirtualHost().orElse(""));
+      if (denied != null) {
+        inbound.disconnect(denied);
+        return true;
+      }
+    }
+
     final PreLoginEvent event = new PreLoginEvent(inbound, login.getUsername(), login.getHolderUuid());
     server.getEventManager().fire(event).thenRunAsync(() -> {
       if (mcConnection.isClosed()) {
@@ -148,6 +165,14 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
             // Request encryption.
             EncryptionRequestPacket request = generateEncryptionRequest();
             this.verify = Arrays.copyOf(request.getVerifyToken(), 4);
+            mcConnection.write(request);
+            this.currentState = LoginState.ENCRYPTION_REQUEST_SENT;
+          } else if (filter != null && filter.encryptOffline(mcConnection.getProtocolVersion())) {
+            // Encrypt the offline login so passwords typed later cannot be sniffed on the wire.
+            EncryptionRequestPacket request = generateEncryptionRequest();
+            request.setShouldAuthenticate(false);
+            this.verify = Arrays.copyOf(request.getVerifyToken(), 4);
+            this.offlineEncryption = true;
             mcConnection.write(request);
             this.currentState = LoginState.ENCRYPTION_REQUEST_SENT;
           } else {
@@ -204,6 +229,13 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
       // Go ahead and enable encryption. Once the client sends EncryptionResponse, encryption
       // is enabled.
       mcConnection.enableEncryption(decryptedSharedSecret);
+
+      if (offlineEncryption) {
+        mcConnection.setActiveSessionHandler(StateRegistry.LOGIN,
+            new AuthSessionHandler(server, inbound,
+                GameProfile.forOfflinePlayer(login.getUsername()), false, null));
+        return true;
+      }
 
       String serverId = generateServerId(decryptedSharedSecret, serverKeyPair.getPublic());
       String playerIp = ((InetSocketAddress) mcConnection.getRemoteAddress()).getHostString();

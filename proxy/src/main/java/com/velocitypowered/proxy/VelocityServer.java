@@ -307,6 +307,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     ipAttemptLimiter = Ratelimiters.createWithMilliseconds(configuration.getLoginRatelimit());
     commandRateLimiter = Ratelimiters.createWithMilliseconds(configuration.getCommandRatelimit());
     tabCompleteRateLimiter = Ratelimiters.createWithMilliseconds(configuration.getTabCompleteRatelimit());
+    // ThirdVelocity: start the protection core before plugins so its API is available to them.
+    ru.moonlightproject.dev.thirdvelocity.proxy.ThirdVelocityCore.start(this);
     loadPlugins();
 
     // Go ahead and fire the proxy initialization event. We block since plugins should have a chance
@@ -649,6 +651,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
         eventManager.fire(new ProxyShutdownEvent()).join();
 
         timedOut = !scheduler.shutdown() || timedOut;
+
+        ru.moonlightproject.dev.thirdvelocity.proxy.ThirdVelocityCore.shutdown();
 
         if (timedOut) {
           logger.error("Your plugins took over 10 seconds to shut down.");

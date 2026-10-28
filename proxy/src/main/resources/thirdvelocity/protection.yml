@@ -1,0 +1,81 @@
+# ThirdVelocity — protection.yml
+# Ранний фильтр соединений, лимиты, уровень атаки и защита соединения.
+
+# Сети, к которым не применяются лимиты, оценка репутации и уровни атаки
+# (баны применяются). Сюда добавляют свои сервера, мониторинг и т.п.
+trusted-networks:
+  - "127.0.0.0/8"
+  - "::1/128"
+
+early-filter:
+  # Закрывать отклонённые соединения через RST (SO_LINGER=0): не копятся TIME_WAIT.
+  reset-connection: true
+  # Логирование отклонённых соединений: NONE, SUMMARY (сводка раз в 30 с), EACH (каждое).
+  log: SUMMARY
+
+rate-limit:
+  # Окно счётчиков подключений (секунды). Лимиты на окно задаются в attack.levels.
+  window-seconds: 10
+  # Подсеть для лимита «на подсеть».
+  subnet-prefix-v4: 24
+  subnet-prefix-v6: 48
+  # Одновременно открытых соединений с одного IP.
+  max-concurrent-per-ip: 8
+  # Превысивший лимит IP блокируется на время (иначе отклоняется только лишнее).
+  temporary-block: true
+  temporary-block-duration: 5m
+  # Пингов списка серверов с одного IP за окно.
+  status-pings-per-window: 20
+
+attack:
+  # Уровень считается по числу подключений (принятых + отклонённых) за окно.
+  window-seconds: 10
+  # Сколько секунд должно быть спокойно, чтобы понизить уровень на одну ступень.
+  recovery-seconds: 30
+  # Нижняя граница уровня: NORMAL, LOW, MEDIUM, STRONG.
+  minimum-level: NORMAL
+  thresholds:
+    low: 150
+    medium: 400
+    strong: 1000
+  # Политика каждого уровня:
+  # connections-per-ip / connections-per-subnet — подключений за окно rate-limit;
+  # unknown-addresses — что делать с IP, которых раньше не было: ALLOW, FLAG (отметить
+  #   подозрительным, Selene покажет CAPTCHA), DENY (не пускать);
+  # deny-flagged — не пускать IP с вердиктом FLAG из reputation.yml.
+  levels:
+    normal: { connections-per-ip: 10, connections-per-subnet: 60, unknown-addresses: ALLOW, deny-flagged: false }
+    low: { connections-per-ip: 6, connections-per-subnet: 40, unknown-addresses: FLAG, deny-flagged: false }
+    medium: { connections-per-ip: 4, connections-per-subnet: 20, unknown-addresses: FLAG, deny-flagged: true }
+    strong: { connections-per-ip: 3, connections-per-subnet: 10, unknown-addresses: DENY, deny-flagged: true }
+
+handshake:
+  # Разрешённые адреса подключения (то, что игрок вписал в список серверов).
+  # Пусто — любые. Поддерживается *: "*.example.com". Боты часто идут по голому IP.
+  allowed-hosts: []
+  # Не пускать, если в адресе подключения указан голый IP.
+  deny-ip-hosts: false
+  # Отвечать на пинги клиентов старше 1.7.
+  allow-legacy-ping: true
+  # Принимать вход через transfer-пакет (1.20.5+).
+  allow-transfer-intent: true
+
+login:
+  # Допустимый ник (регулярное выражение).
+  name-pattern: "^[A-Za-z0-9_]{3,16}$"
+  # Запрещённые ники (регулярные выражения, без учёта регистра).
+  denied-names: []
+  # Максимум разных ников с одного IP за окно alts.yml → names-per-address-window.
+  # 0 — без ограничения.
+  max-names-per-address: 0
+
+proxy-protocol:
+  # Если в velocity.toml включён haproxy-protocol, PROXY-заголовок принимается только от
+  # этих адресов. Иначе любой может подделать свой IP и обойти баны. Пусто — от всех.
+  trusted-sources: []
+
+security:
+  # Шифровать вход offline-игроков (клиенты 1.20.5+) без обращения к Mojang:
+  # пароль и весь трафик не видны при перехвате. Активный MITM это не исключает —
+  # ванильный протокол не умеет проверять ключ сервера в offline-режиме.
+  encrypt-offline-connections: true

@@ -44,6 +44,8 @@ import io.netty.handler.codec.haproxy.HAProxyMessageDecoder;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import ru.moonlightproject.dev.thirdvelocity.proxy.ThirdVelocityCore;
+import ru.moonlightproject.dev.thirdvelocity.proxy.protection.ConnectionFilter;
 
 /**
  * Server channel initializer.
@@ -59,6 +61,12 @@ public class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
   @Override
   protected void initChannel(final Channel ch) {
+    // ThirdVelocity: refuse banned/flooding addresses before any Minecraft handler is created.
+    final ConnectionFilter filter = ThirdVelocityCore.filterOrNull();
+    final boolean proxyProtocol = this.server.getConfiguration().isProxyProtocol();
+    if (filter != null && !filter.initChannel(ch, proxyProtocol)) {
+      return;
+    }
     ch.pipeline()
         .addLast(LEGACY_PING_DECODER, new LegacyPingDecoder())
         .addLast(FRAME_DECODER, new MinecraftVarintFrameDecoder(ProtocolUtils.Direction.SERVERBOUND))
@@ -86,8 +94,14 @@ public class ServerChannelInitializer extends ChannelInitializer<Channel> {
           new SimpleBytesPerSecondLimiter(configuredPacketsPerSecond, configuredBytes, configuredInterval)
       );
     }
-    if (this.server.getConfiguration().isProxyProtocol()) {
-      ch.pipeline().addFirst(new HAProxyMessageDecoder());
+    if (proxyProtocol) {
+      ch.pipeline().addFirst("haproxy-decoder", new HAProxyMessageDecoder());
+      if (filter != null) {
+        ch.pipeline().addAfter("haproxy-decoder", "thirdvelocity-proxy-gate", filter.proxyGate());
+      }
+    }
+    if (filter != null) {
+      ch.pipeline().addFirst("thirdvelocity-traffic", ThirdVelocityCore.get().protectionManager().trafficHandler());
     }
   }
 }

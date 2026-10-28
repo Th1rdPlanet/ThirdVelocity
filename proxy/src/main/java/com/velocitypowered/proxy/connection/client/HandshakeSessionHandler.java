@@ -50,6 +50,9 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import ru.moonlightproject.dev.thirdvelocity.proxy.ThirdVelocityCore;
+import ru.moonlightproject.dev.thirdvelocity.proxy.protection.ConnectionFilter;
+import ru.moonlightproject.dev.thirdvelocity.proxy.util.IpKeys;
 
 /**
  * The initial handler used when a connection is established to the proxy. This will either
@@ -72,6 +75,11 @@ public class HandshakeSessionHandler implements MinecraftSessionHandler {
 
   @Override
   public boolean handle(LegacyPingPacket packet) {
+    final ConnectionFilter filter = ThirdVelocityCore.filterOrNull();
+    if (filter != null && !filter.allowLegacyPing()) {
+      connection.close(true);
+      return true;
+    }
     connection.setProtocolVersion(ProtocolVersion.LEGACY);
     final StatusSessionHandler handler =
         new StatusSessionHandler(server, new LegacyInboundConnection(connection, packet));
@@ -98,6 +106,24 @@ public class HandshakeSessionHandler implements MinecraftSessionHandler {
     } else {
       final InitialInboundConnection ic = new InitialInboundConnection(connection,
               cleanVhost(handshake.getServerAddress()), handshake);
+      // ThirdVelocity: host name policy, status rate limit and ban screen for MESSAGE mode.
+      final ConnectionFilter filter = ThirdVelocityCore.filterOrNull();
+      if (filter != null) {
+        final boolean login = nextState == StateRegistry.LOGIN;
+        final Component decision = filter.handshake(connection.getChannel(),
+            IpKeys.of(connection.getRemoteAddress()), cleanVhost(handshake.getServerAddress()), login,
+            handshake.getIntent() == HandshakeIntent.TRANSFER);
+        if (decision != null) {
+          if (login && !Component.empty().equals(decision) && handshake.getProtocolVersion().isSupported()) {
+            connection.setProtocolVersion(handshake.getProtocolVersion());
+            connection.setState(StateRegistry.LOGIN);
+            ic.disconnectQuietly(decision);
+          } else {
+            connection.close(true);
+          }
+          return true;
+        }
+      }
       if (handshake.getIntent() == HandshakeIntent.TRANSFER
               && !server.getConfiguration().isAcceptTransfers()) {
         ic.disconnect(Component.translatable("multiplayer.disconnect.transfers_disabled"));
