@@ -1,44 +1,81 @@
-# Velocity
+# ThirdVelocity
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/PaperMC/Velocity/gradle.yml)](https://papermc.io/downloads/velocity)
-[![Join our Discord](https://img.shields.io/discord/289587909051416579.svg?logo=discord&label=)](https://discord.gg/papermc)
+Форк [Velocity](https://github.com/PaperMC/Velocity) с встроенной защитой сети: ранний
+фильтр соединений, баны по IP/подсетям/ASN/странам/никам, GeoIP с автообновлением,
+оценка репутации IP, поиск твинков и связанных адресов, определение клиентов, модов и
+лаунчеров, защита от ботов и шифрование offline-входа. Ядро работает самостоятельно и
+отдаёт всё через Java API — им пользуется плагин авторизации
+[Selene](https://github.com/Th1rdPlanet/Selene), а свои плагины (баны, модерация)
+могут строиться поверх того же API.
 
-A Minecraft server proxy with unparalleled server support, scalability,
-and flexibility.
+## Возможности
 
-Velocity is licensed under the GPLv3 license.
+| Подсистема | Что делает |
+|---|---|
+| Ранний фильтр | Проверяет адрес в `initChannel`, до создания обработчиков Minecraft. Забаненный или флудящий IP получает RST (опционально — экран бана). С PROXY protocol проверяется реальный адрес, а заголовок принимается только от доверенных источников. |
+| Баны | IP и CIDR (IPv4/IPv6), ник, UUID, AS, страна. Сроки, причины, история. Индекс в памяти (longest-prefix). Общая MySQL/MariaDB/PostgreSQL синхронизирует несколько прокси. Опциональный экспорт в nftables. |
+| GeoIP | Базы `.mmdb`: по умолчанию бесплатные DB-IP Lite (страна, AS, город), можно MaxMind GeoLite2 с ключом. Обновление по таймеру и командой `/tv geoip update`, атомарная подмена без перезапуска. |
+| IP-списки | Tor exit, VPN, дата-центры, FireHOL, Spamhaus DROP, свои файлы. Каждый список — набор тегов. |
+| Репутация | Сумма очков: теги списков, страна, AS, новизна адреса, подтверждённые входы, адреса забаненных аккаунтов, частота подключений, число ников, события от плагинов (ошибки пароля/CAPTCHA) с затуханием, свои правила плагинов. Вердикт ALLOW / FLAG / DENY. |
+| Твинки | Граф «аккаунт ↔ IP» с учётом подсетей, AS, отпечатков клиента и транзитивных связей; подавление общих адресов (NAT, мобильные сети, VPN). Обнаружение обхода бана. |
+| Клиенты | Загрузчик (Vanilla/Fabric/Quilt/Forge/NeoForge), Lunar/Feather/LabyMod/Badlion, моды по неймспейсам каналов и списку Forge, нестандартный UUID лаунчера, язык и настройки. Правила с действиями none/flag/kick. |
+| Антибот | Лимиты подключений на IP и подсеть, временные блокировки, лимит одновременных соединений, лимит пингов, политика host name, проверка ника, лимит ников на IP, уровни атаки NORMAL → STRONG с гистерезисом. |
+| Соединение | Шифрование offline-входа для клиентов 1.20.5+ (`shouldAuthenticate=false`), доверенные источники PROXY protocol. |
+| Метрики | Подключения, отклонения, входы, пинги, байты и пакеты в секунду без чтения содержимого. |
 
-## Goals
+## Сборка и запуск
 
-* A codebase that is easy to dive into and consistently follows best practices
-  for Java projects as much as reasonably possible.
-* High performance: handle thousands of players on one proxy.
-* A new, refreshing API built from the ground up to be flexible and powerful
-  whilst avoiding design mistakes and suboptimal designs from other proxies.
-* First-class support for Paper, Sponge, Fabric and Forge. (Other implementations
-  may work, but we make every endeavor to support these server implementations
-  specifically.)
-  
-## Building
+```sh
+./gradlew build
+java -jar proxy/build/libs/velocity-proxy-*-all.jar
+```
 
-Velocity is built with [Gradle](https://gradle.org). We recommend using the
-wrapper script (`./gradlew`) as our CI builds using it.
+Нужна Java 25 (как у upstream Velocity 4.x). При первом запуске создаётся папка
+`thirdvelocity/` с конфигами: `config.yml`, `protection.yml`, `intel.yml`,
+`reputation.yml`, `alts.yml`, `clients.yml`, `messages.yml`. Все параметры
+прокомментированы. `/tv reload` применяет изменения без перезапуска (кроме `storage`).
 
-It is sufficient to run `./gradlew build` to run the full build cycle.
+Секреты можно не хранить в файлах: `THIRDVELOCITY_DB_USER`, `THIRDVELOCITY_DB_PASSWORD`,
+`MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY`.
 
-## Running
+## Команда `/tv`
 
-Once you've built Velocity, you can copy and run the `-all` JAR from
-`proxy/build/libs`. Velocity will generate a default configuration file
-and you can configure it from there.
+`ban`, `unban`, `bans`, `baninfo`, `check`, `alts`, `ip`, `history`, `client`, `geoip`,
+`lists`, `attack`, `unblock`, `reload`. Права — `thirdvelocity.command.<подкоманда>`,
+уведомления о твинках — `thirdvelocity.notify.alts`. Команду можно выключить целиком
+или по подкомандам (`config.yml → commands`), применение банов ядром — `bans.enforce`.
 
-Alternatively, you can get the proxy JAR from the [downloads](https://papermc.io/downloads/velocity)
-page.
+```
+/tv ban 1.2.3.0/24 7d Флуд ботами
+/tv ban name Griefer perm Гриф
+/tv ban asn AS12345 Хостинг ботов
+/tv check Player
+/tv alts Player
+```
 
-# Localisation
+## Java API
 
-Translations are handled using [Crowdin](https://papermc-io.crowdin.com/velocity).
-If you want to translate a language not available on Crowdin,
-you might want to ask in the [Discord](https://discord.gg/papermc) about it.
+Подробно — [docs/api.md](docs/api.md). Коротко:
 
-[![CI powered by namespace badge](https://papermc.io/assets/misc/namespace-oss-badge.svg?project=velocity)](https://namespace.so/github-actions/?utm_source=oss&utm_campaign=papermc)
+```kotlin
+repositories { maven("https://jitpack.io") }
+dependencies { compileOnly("com.github.Th1rdPlanet.ThirdVelocity:thirdvelocity-api:v1.0.0") }
+```
+
+```java
+ThirdVelocity.find().ifPresent(tv -> {
+  tv.bans().ban(BanRequest.permanent(new BanTarget.Name("Griefer"), "Гриф", "MyPlugin"));
+  tv.alts().alts("Player").thenAccept(report -> ...);
+});
+```
+
+## Ограничения
+
+- Всё, что сообщает клиент (brand, каналы, UUID при входе), можно подделать. Это сигналы, а не доказательства.
+- Шифрование offline-входа защищает от пассивного перехвата. От активного MITM не защищает: ванильный клиент не умеет проверять ключ сервера без Mojang.
+- Определение лаунчера эвристическое: в протоколе Minecraft нет User-Agent.
+- Публичные списки (FireHOL, X4BNet) иногда содержат ложные срабатывания. Веса настраиваются в `reputation.yml`.
+
+## Лицензия
+
+GPL-3.0, как и Velocity. Оригинальный README upstream — [docs/UPSTREAM-README.md](docs/UPSTREAM-README.md).

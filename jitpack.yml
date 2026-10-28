@@ -1,0 +1,5 @@
+# JitPack builds only the API artifact: com.github.Th1rdPlanet.ThirdVelocity:thirdvelocity-api:<tag>
+jdk:
+  - openjdk21
+install:
+  - ./gradlew :thirdvelocity-api:publishToMavenLocal -x test --no-daemon
