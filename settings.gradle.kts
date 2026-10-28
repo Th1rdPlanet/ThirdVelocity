@@ -22,6 +22,10 @@ plugins {
 
 rootProject.name = "velocity"
 
+// ThirdVelocity: public API for plugins (Java 21 bytecode, no dependencies).
+include(":thirdvelocity-api")
+project(":thirdvelocity-api").projectDir = file("thirdvelocity-api")
+
 sequenceOf(
     "api",
     "native",
