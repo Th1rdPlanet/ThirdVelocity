@@ -246,7 +246,7 @@ public final class ReputationManager implements ReputationService {
           signals.add(new Signal(provider.getKey() + ":" + signal.id(), signal.points(), signal.detail()));
         }
       } catch (RuntimeException e) {
-        LOGGER.warn("[!] score    » правило {} упало: {}", provider.getKey(), e.toString());
+        LOGGER.warn("[x] score    » правило {} упало: {}", provider.getKey(), e.toString());
       }
     }
     return finish(address, signals, geo, tags, s);

@@ -391,12 +391,12 @@ public final class ProtectionManager implements ProtectionService {
         String output = new String(process.getInputStream().readAllBytes()).trim();
         if (!process.waitFor(10, TimeUnit.SECONDS)) {
           process.destroyForcibly();
-          LOGGER.warn("[!] firewall » команда {} не ответила вовремя", command.get(0));
+          LOGGER.warn("[x] firewall » команда {} не ответила вовремя", command.get(0));
         } else if (process.exitValue() != 0) {
-          LOGGER.warn("[!] firewall » команда завершилась с кодом {}: {}", process.exitValue(), output);
+          LOGGER.warn("[x] firewall » команда завершилась с кодом {}: {}", process.exitValue(), output);
         }
       } catch (Exception e) {
-        LOGGER.warn("[!] firewall » команда не запустилась: {}", e.getMessage());
+        LOGGER.warn("[x] firewall » команда не запустилась: {}", e.getMessage());
       } finally {
         if (Thread.currentThread().isInterrupted()) {
           Thread.currentThread().interrupt();

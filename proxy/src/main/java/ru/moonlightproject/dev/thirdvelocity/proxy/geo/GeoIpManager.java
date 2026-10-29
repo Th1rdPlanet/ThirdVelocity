@@ -122,7 +122,7 @@ public final class GeoIpManager implements GeoIpService {
           swap(state, open(source.file()));
         } catch (IOException e) {
           state.lastError = "Cannot open " + source.file() + ": " + e.getMessage();
-          LOGGER.warn("{}", state.lastError);
+          LOGGER.warn("[x] geoip    » {}", state.lastError);
         }
       }
     }
@@ -223,7 +223,7 @@ public final class GeoIpManager implements GeoIpService {
           Downloader.redact(url), state.buildTime);
     } catch (Exception e) {
       state.lastError = e.getMessage();
-      LOGGER.warn("[!] geoip    » {} не обновилась: {}", source.name(), e.getMessage());
+      LOGGER.warn("[x] geoip    » {} не обновилась: {}", source.name(), e.getMessage());
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }

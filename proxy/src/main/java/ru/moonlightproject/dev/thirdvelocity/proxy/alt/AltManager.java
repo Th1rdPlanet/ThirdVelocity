@@ -287,7 +287,7 @@ public final class AltManager implements AltService {
       core.reputation().taintedAddresses().replace(addresses);
       core.reputation().invalidate();
     }).exceptionally(error -> {
-      LOGGER.warn("[!] alts     » адреса забаненных не пересобраны: {}", error.getMessage());
+      LOGGER.warn("[x] alts     » адреса забаненных не пересобраны: {}", error.getMessage());
       return null;
     });
   }
@@ -318,7 +318,7 @@ public final class AltManager implements AltService {
     core.protectionManager().authenticatedAddresses().add(canonical);
     core.reputation().invalidate();
     upsert(name, canonical, true).exceptionally(error -> {
-      LOGGER.warn("[!] alts     » подтверждённый вход не записан: {}", error.getMessage());
+      LOGGER.warn("[x] alts     » подтверждённый вход не записан: {}", error.getMessage());
       return null;
     });
   }
@@ -389,7 +389,7 @@ public final class AltManager implements AltService {
         }
       }
       if (error != null) {
-        LOGGER.warn("[!] alts     » {} записей входа не сохранены: {}", batch.size(), error.getMessage());
+        LOGGER.warn("[x] alts     » {} записей входа не сохранены: {}", batch.size(), error.getMessage());
       }
     });
   }
@@ -417,7 +417,7 @@ public final class AltManager implements AltService {
       }
       return null;
     }).exceptionally(error -> {
-      LOGGER.warn("[!] alts     » отпечаток не сохранён: {}", error.getMessage());
+      LOGGER.warn("[x] alts     » отпечаток не сохранён: {}", error.getMessage());
       return null;
     });
   }

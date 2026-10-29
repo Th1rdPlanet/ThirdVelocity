@@ -183,7 +183,7 @@ public final class BanManager implements BanService {
         rebuild();
       }
     }).exceptionally(error -> {
-      LOGGER.warn("[!] bans     » синхронизация не удалась: {}", rootMessage(error));
+      LOGGER.warn("[x] bans     » синхронизация не удалась: {}", rootMessage(error));
       return null;
     });
   }
@@ -227,7 +227,7 @@ public final class BanManager implements BanService {
       return new Ban(rs.getLong("id"), target, rs.getString("reason"), rs.getString("actor"),
           Instant.ofEpochMilli(rs.getLong("created_at")), expiresAt, revokedAt, rs.getString("revoked_by"));
     } catch (IllegalArgumentException e) {
-      LOGGER.warn("[!] bans     » пропущен битый бан #{}: {}", rs.getLong("id"), e.getMessage());
+      LOGGER.warn("[x] bans     » пропущен битый бан #{}: {}", rs.getLong("id"), e.getMessage());
       return null;
     }
   }
@@ -320,10 +320,10 @@ public final class BanManager implements BanService {
         String output = new String(process.getInputStream().readAllBytes()).trim();
         int code = process.waitFor();
         if (code != 0) {
-          LOGGER.warn("[!] firewall » {} завершилась с кодом {}: {}", command, code, output);
+          LOGGER.warn("[x] firewall » {} завершилась с кодом {}: {}", command, code, output);
         }
       } catch (Exception e) {
-        LOGGER.warn("[!] firewall » {} не запустилась: {}", command, e.getMessage());
+        LOGGER.warn("[x] firewall » {} не запустилась: {}", command, e.getMessage());
       }
     });
   }

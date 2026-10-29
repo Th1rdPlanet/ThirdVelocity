@@ -284,7 +284,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
       try {
         task.run();
       } catch (RuntimeException e) {
-        LOGGER.warn("[!] task     » фоновая задача упала", e);
+        LOGGER.warn("[x] task     » фоновая задача упала", e);
       }
     };
   }
@@ -335,7 +335,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
         .thenCompose(ignored -> alts.alts(player.getUsername()))
         .thenAccept(report -> onAltReport(player, report))
         .exceptionally(error -> {
-          LOGGER.warn("[!] alts     » проверка {} не удалась: {}", player.getUsername(), error.getMessage());
+          LOGGER.warn("[x] alts     » проверка {} не удалась: {}", player.getUsername(), error.getMessage());
           return null;
         });
   }
