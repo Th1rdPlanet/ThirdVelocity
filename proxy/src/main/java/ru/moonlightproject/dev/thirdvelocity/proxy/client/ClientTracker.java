@@ -204,10 +204,10 @@ public final class ClientTracker implements ClientService {
   }
 
   private static final Map<String, String> BEHAVIOUR_LABELS = Map.of(
-      "no-brand", "Не прислал brand",
-      "no-settings", "Не прислал настройки клиента",
-      "odd-locale", "Нестандартный формат языка",
-      "odd-view-distance", "Невозможная дальность прорисовки");
+      "no-brand", "no client brand",
+      "no-settings", "no client settings",
+      "odd-locale", "unusual locale format",
+      "odd-view-distance", "impossible view distance");
 
   /** Records a behaviour signal once per session and applies its action. */
   private void behaviourSignal(Session s, Player player, String signal) {

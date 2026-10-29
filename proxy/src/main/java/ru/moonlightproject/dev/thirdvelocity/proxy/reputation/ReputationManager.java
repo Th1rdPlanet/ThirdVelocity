@@ -193,13 +193,13 @@ public final class ReputationManager implements ReputationService {
     for (String tag : tags) {
       Integer points = s.tags().get(tag);
       if (points != null && points != 0) {
-        signals.add(new Signal("list:" + tag, points, "в списке " + tag));
+        signals.add(new Signal("list:" + tag, points, "listed in " + tag));
       }
     }
     if (s.countryMode() != CountryMode.NONE && geo.countryCode() != null) {
       boolean listed = s.countries().contains(geo.countryCode());
       if ((s.countryMode() == CountryMode.DENY) == listed) {
-        signals.add(new Signal("country", s.countryPoints(), "страна " + geo.countryCode()));
+        signals.add(new Signal("country", s.countryPoints(), "country " + geo.countryCode()));
       }
     }
     if (geo.asn() > 0) {
@@ -210,25 +210,25 @@ public final class ReputationManager implements ReputationService {
       }
     }
     if (s.unknownGeo() != 0 && geo.countryCode() == null && core.geoIpManager().anyLoaded()) {
-      signals.add(new Signal("geo:unknown", s.unknownGeo(), "нет данных GeoIP"));
+      signals.add(new Signal("geo:unknown", s.unknownGeo(), "no GeoIP data"));
     }
     if (core.protectionManager().authenticatedAddresses().contains(address)) {
       if (s.authenticatedAddress() != 0) {
-        signals.add(new Signal("history:authenticated", s.authenticatedAddress(), "с адреса уже входили с паролем"));
+        signals.add(new Signal("history:authenticated", s.authenticatedAddress(), "address already logged in with a password"));
       }
     } else if (!core.protectionManager().knownAddresses().contains(address) && s.newAddress() != 0) {
-      signals.add(new Signal("history:new", s.newAddress(), "адрес раньше не встречался"));
+      signals.add(new Signal("history:new", s.newAddress(), "address never seen before"));
     }
     if (s.bannedAccountAddress() != 0 && tainted.contains(address)) {
-      signals.add(new Signal("history:banned-account", s.bannedAccountAddress(), "адрес забаненного аккаунта"));
+      signals.add(new Signal("history:banned-account", s.bannedAccountAddress(), "address of a banned account"));
     }
     int perMinute = core.protectionManager().connectionsLastMinute(address);
     if (perMinute >= s.rateThreshold()) {
-      signals.add(new Signal("rate", s.ratePoints(), perMinute + " подключений за минуту"));
+      signals.add(new Signal("rate", s.ratePoints(), perMinute + " connections per minute"));
     }
     int names = core.altManager().recentNames(address);
     if (names >= s.namesThreshold()) {
-      signals.add(new Signal("names", s.namesPoints(), names + " ников с адреса"));
+      signals.add(new Signal("names", s.namesPoints(), names + " names from this address"));
     }
     EventScore score = events.get(address);
     if (score != null) {
@@ -237,7 +237,7 @@ public final class ReputationManager implements ReputationService {
         points = (int) Math.round(decayed(score, System.currentTimeMillis(), s));
       }
       if (points != 0) {
-        signals.add(new Signal("events", points, "события авторизации"));
+        signals.add(new Signal("events", points, "authentication events"));
       }
     }
     for (Map.Entry<String, SignalProvider> provider : providers.entrySet()) {
@@ -282,7 +282,7 @@ public final class ReputationManager implements ReputationService {
       }
       if (banned > 0 && !tainted.contains(canonical)) {
         signals.add(new Signal("history:banned-account", settings.bannedAccountAddress(),
-            banned + " забаненных аккаунтов на адресе"));
+            banned + " banned accounts on this address"));
       }
       return finish(canonical, signals, base.geo(), base.tags(), settings);
     });

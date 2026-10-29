@@ -76,21 +76,21 @@ public final class ThirdVelocityCommand implements SimpleCommand {
   private static final Map<String, Sub> SUBCOMMANDS = new LinkedHashMap<>();
 
   static {
-    SUBCOMMANDS.put("ban", new Sub("ban [ip|name|uuid|asn|country] <цель> [срок] [причина]",
-        "забанить IP/подсеть, ник, UUID, AS или страну"));
-    SUBCOMMANDS.put("unban", new Sub("unban <id> | unban [вид] <цель>", "снять бан"));
-    SUBCOMMANDS.put("bans", new Sub("bans [страница]", "активные баны"));
-    SUBCOMMANDS.put("baninfo", new Sub("baninfo <id>", "подробности бана"));
-    SUBCOMMANDS.put("check", new Sub("check <ip|игрок>", "проверка IP: GeoIP, списки, оценка"));
-    SUBCOMMANDS.put("alts", new Sub("alts <ник>", "твинки и связанные аккаунты"));
-    SUBCOMMANDS.put("ip", new Sub("ip <ip|игрок>", "аккаунты на IP и связанные адреса"));
-    SUBCOMMANDS.put("history", new Sub("history <ник>", "история адресов игрока"));
-    SUBCOMMANDS.put("client", new Sub("client <игрок>", "клиент, моды, лаунчер"));
-    SUBCOMMANDS.put("geoip", new Sub("geoip [status|update]", "базы GeoIP"));
-    SUBCOMMANDS.put("lists", new Sub("lists [status|update]", "IP-списки"));
-    SUBCOMMANDS.put("attack", new Sub("attack", "уровень атаки и трафик"));
-    SUBCOMMANDS.put("unblock", new Sub("unblock <ip>", "снять временную блокировку"));
-    SUBCOMMANDS.put("reload", new Sub("reload", "перечитать конфиги"));
+    SUBCOMMANDS.put("ban", new Sub("ban [ip|name|uuid|asn|country] <target> [duration] [reason]",
+        "ban an IP or subnet, name, UUID, AS or country"));
+    SUBCOMMANDS.put("unban", new Sub("unban <id> | unban [kind] <target>", "lift a ban"));
+    SUBCOMMANDS.put("bans", new Sub("bans [page]", "active bans"));
+    SUBCOMMANDS.put("baninfo", new Sub("baninfo <id>", "ban details"));
+    SUBCOMMANDS.put("check", new Sub("check <ip|player>", "IP check: GeoIP, lists, score"));
+    SUBCOMMANDS.put("alts", new Sub("alts <name>", "alt and linked accounts"));
+    SUBCOMMANDS.put("ip", new Sub("ip <ip|player>", "accounts on an IP and related addresses"));
+    SUBCOMMANDS.put("history", new Sub("history <name>", "address history of a player"));
+    SUBCOMMANDS.put("client", new Sub("client <player>", "client, mods, launcher"));
+    SUBCOMMANDS.put("geoip", new Sub("geoip [status|update]", "GeoIP databases"));
+    SUBCOMMANDS.put("lists", new Sub("lists [status|update]", "IP lists"));
+    SUBCOMMANDS.put("attack", new Sub("attack", "attack level and traffic"));
+    SUBCOMMANDS.put("unblock", new Sub("unblock <ip>", "lift a temporary block"));
+    SUBCOMMANDS.put("reload", new Sub("reload", "reload configs"));
   }
 
   private final ThirdVelocityCore core;
@@ -136,6 +136,15 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     return source instanceof Player player ? player.getUsername() : "CONSOLE";
   }
 
+  // ---- output ----------------------------------------------------------------------------
+  // One layout for every reply: a marked header, then labelled rows drawn as a small tree.
+  // Values are inserted unparsed, so player names or ban reasons can never inject tags.
+
+  private static final String MARK = "<#7dd3fc>◆</#7dd3fc> ";
+  private static final String BRANCH = "<dark_gray>  ├</dark_gray> ";
+  private static final String LAST = "<dark_gray>  └</dark_gray> ";
+  private static final String DOT = " <dark_gray>·</dark_gray> ";
+
   private static void send(CommandSource source, String format, String... placeholders) {
     TagResolver.Builder resolver = TagResolver.builder();
     for (int i = 0; i + 1 < placeholders.length; i += 2) {
@@ -144,8 +153,33 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     source.sendMessage(MM.deserialize(format, resolver.build()));
   }
 
+  private static void head(CommandSource source, String format, String... placeholders) {
+    send(source, MARK + format, placeholders);
+  }
+
+  /** A labelled row; {@code value} is a MiniMessage format using the placeholders. */
+  private static void row(CommandSource source, boolean last, String label, String value, String... placeholders) {
+    send(source, (last ? LAST : BRANCH) + "<gray>" + label + ":</gray> " + value, placeholders);
+  }
+
+  private static void ok(CommandSource source, String format, String... placeholders) {
+    send(source, MARK + "<green>" + format, placeholders);
+  }
+
   private static void error(CommandSource source, String text) {
-    send(source, "<red><text>", "text", text);
+    send(source, MARK + "<red><text>", "text", text);
+  }
+
+  private static void usage(CommandSource source, String sub) {
+    send(source, MARK + "<gray>Usage:</gray> <white>/tv <usage>", "usage", SUBCOMMANDS.get(sub).usage());
+  }
+
+  private static String expires(Ban ban) {
+    return ban.expiresAt() == null ? "permanent" : "until " + TIME.format(ban.expiresAt());
+  }
+
+  private static String target(Ban ban) {
+    return ban.target().kind() + " " + ban.target().value();
   }
 
   @Override
@@ -159,7 +193,7 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     String sub = args[0].toLowerCase(Locale.ROOT);
     if (!allowed(source, sub)) {
       error(source, SUBCOMMANDS.containsKey(sub) && !disabled.contains(sub)
-          ? "Недостаточно прав." : "Неизвестная подкоманда. /" + invocation.alias() + " help");
+          ? "You may not use this command." : "Unknown subcommand, see /" + invocation.alias() + " help");
       return;
     }
     String[] rest = Arrays.copyOfRange(args, 1, args.length);
@@ -185,19 +219,19 @@ public final class ThirdVelocityCommand implements SimpleCommand {
       while (cause.getCause() != null) {
         cause = cause.getCause();
       }
-      error(source, "Ошибка: " + cause.getMessage());
+      error(source, "Failed: " + cause.getMessage());
       return null;
     });
   }
 
   private void help(CommandSource source) {
-    send(source, "<gradient:#7f5af0:#2cb67d><b>ThirdVelocity</b></gradient> <gray><version>",
-        "version", ThirdVelocityCore.VERSION);
-    for (Map.Entry<String, Sub> entry : SUBCOMMANDS.entrySet()) {
-      if (allowed(source, entry.getKey())) {
-        send(source, " <aqua>/tv <usage></aqua> <dark_gray>—</dark_gray> <gray><description>",
-            "usage", entry.getValue().usage(), "description", entry.getValue().description());
-      }
+    head(source, "<white><b>ThirdVelocity</b></white> <dark_gray><version> · commands", "version", ThirdVelocityCore.VERSION);
+    List<Map.Entry<String, Sub>> visible = SUBCOMMANDS.entrySet().stream()
+        .filter(entry -> allowed(source, entry.getKey())).toList();
+    for (int i = 0; i < visible.size(); i++) {
+      send(source, (i == visible.size() - 1 ? LAST : BRANCH)
+              + "<white>/tv <usage></white> <dark_gray>—</dark_gray> <gray><description>",
+          "usage", visible.get(i).getValue().usage(), "description", visible.get(i).getValue().description());
     }
   }
 
@@ -245,7 +279,7 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     BanTarget target = target(source, args, consumed);
     if (target == null) {
       if (consumed[0] >= 0) {
-        error(source, "Использование: /tv " + SUBCOMMANDS.get("ban").usage());
+        usage(source, "ban");
       }
       return done();
     }
@@ -259,13 +293,12 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     }
     String reason = String.join(" ", Arrays.copyOfRange(args, index, args.length));
     if (duration != null && duration.isZero()) {
-      error(source, "Срок должен быть больше нуля.");
+      error(source, "The duration must be longer than zero.");
       return done();
     }
     return core.bans().ban(new BanRequest(target, reason, actor(source), duration)).thenAccept(ban ->
-        send(source, "<green>Бан <white>#<id></white> выдан: <white><target></white> <gray>(<expires>)</gray>",
-            "id", Long.toString(ban.id()), "target", ban.target().kind() + " " + ban.target().value(),
-            "expires", ban.expiresAt() == null ? "навсегда" : "до " + TIME.format(ban.expiresAt())));
+        ok(source, "Ban <white>#<id></white> issued:</green> <white><target></white>" + DOT + "<yellow><expires>",
+            "id", Long.toString(ban.id()), "target", target(ban), "expires", expires(ban)));
   }
 
   private CompletableFuture<?> unban(CommandSource source, String[] args) {
@@ -273,9 +306,9 @@ public final class ThirdVelocityCommand implements SimpleCommand {
       long id = Long.parseLong(args[0].replace("#", ""));
       return core.bans().revoke(id, actor(source)).thenAccept(result -> {
         if (result.isPresent()) {
-          send(source, "<green>Бан <white>#<id></white> снят.", "id", Long.toString(id));
+          ok(source, "Ban <white>#<id></white> lifted.", "id", Long.toString(id));
         } else {
-          error(source, "Активного бана #" + id + " нет.");
+          error(source, "No active ban #" + id + ".");
         }
       });
     }
@@ -283,15 +316,15 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     BanTarget target = target(source, args, consumed);
     if (target == null) {
       if (consumed[0] >= 0) {
-        error(source, "Использование: /tv " + SUBCOMMANDS.get("unban").usage());
+        usage(source, "unban");
       }
       return done();
     }
     return core.bans().revoke(target, actor(source)).thenAccept(revoked -> {
       if (revoked.isEmpty()) {
-        error(source, "Активных банов для " + target.kind() + " " + target.value() + " нет.");
+        error(source, "No active bans for " + target.kind() + " " + target.value() + ".");
       } else {
-        send(source, "<green>Снято банов: <white><count></white>.", "count", Integer.toString(revoked.size()));
+        ok(source, "Lifted <white><count></white> ban(s).", "count", Integer.toString(revoked.size()));
       }
     });
   }
@@ -303,14 +336,17 @@ public final class ThirdVelocityCommand implements SimpleCommand {
       try {
         page = Math.max(1, Integer.parseInt(args[0]));
       } catch (NumberFormatException e) {
-        error(source, "Страница должна быть числом.");
+        error(source, "The page must be a number.");
         return done();
       }
     }
     int pages = Math.max(1, (active.size() + 9) / 10);
     page = Math.min(page, pages);
-    send(source, "<gold>Активные баны: <white><count></white> <gray>(стр. <page>/<pages>)",
+    head(source, "<white><b>Active bans</b></white> <white><count></white> <dark_gray>· page <page>/<pages>",
         "count", Integer.toString(active.size()), "page", Integer.toString(page), "pages", Integer.toString(pages));
+    if (active.isEmpty()) {
+      send(source, LAST + "<gray>none");
+    }
     for (Ban ban : active.subList((page - 1) * 10, Math.min(active.size(), page * 10))) {
       sendBanLine(source, ban);
     }
@@ -318,31 +354,34 @@ public final class ThirdVelocityCommand implements SimpleCommand {
   }
 
   private static void sendBanLine(CommandSource source, Ban ban) {
-    send(source, " <gray>#<id></gray> <white><target></white> <dark_gray>|</dark_gray> <gray><reason></gray>"
-            + " <dark_gray>|</dark_gray> <yellow><expires></yellow> <dark_gray>(<actor>)",
-        "id", Long.toString(ban.id()), "target", ban.target().kind() + " " + ban.target().value(),
-        "reason", ban.reason().isEmpty() ? "-" : ban.reason(),
-        "expires", ban.expiresAt() == null ? "навсегда" : "до " + TIME.format(ban.expiresAt()),
-        "actor", ban.actor());
+    send(source, "<dark_gray>  •</dark_gray> <gray>#<id></gray> <white><target></white>" + DOT + "<gray><reason></gray>"
+            + DOT + "<yellow><expires></yellow> <dark_gray>by <actor>",
+        "id", Long.toString(ban.id()), "target", target(ban),
+        "reason", ban.reason().isEmpty() ? "no reason" : ban.reason(), "expires", expires(ban), "actor", ban.actor());
   }
 
   private CompletableFuture<?> banInfo(CommandSource source, String[] args) {
     if (args.length != 1 || !args[0].matches("#?\\d+")) {
-      error(source, "Использование: /tv baninfo <id>");
+      usage(source, "baninfo");
       return done();
     }
     long id = Long.parseLong(args[0].replace("#", ""));
     return core.bans().byId(id).thenAccept(found -> {
       if (found.isEmpty()) {
-        error(source, "Бан #" + id + " не найден.");
+        error(source, "Ban #" + id + " not found.");
         return;
       }
       Ban ban = found.get();
-      sendBanLine(source, ban);
-      send(source, " <gray>Создан: <white><created></white>  Статус: <status>",
-          "created", TIME.format(ban.createdAt()),
-          "status", ban.activeAt(Instant.now()) ? "активен"
-              : ban.revokedAt() != null ? "снят " + TIME.format(ban.revokedAt()) + " (" + ban.revokedBy() + ")" : "истёк");
+      String status = ban.activeAt(Instant.now()) ? "<green>active"
+          : ban.revokedAt() != null ? "<gray>lifted <white><revoked></white> by <white><by>" : "<gray>expired";
+      head(source, "<white><b>Ban #<id></b></white>", "id", Long.toString(ban.id()));
+      row(source, false, "Target", "<white><target>", "target", target(ban));
+      row(source, false, "Reason", "<white><reason>", "reason", ban.reason().isEmpty() ? "no reason" : ban.reason());
+      row(source, false, "Expires", "<yellow><expires>", "expires", expires(ban));
+      row(source, false, "Issued", "<white><created></white> <dark_gray>by <actor>",
+          "created", TIME.format(ban.createdAt()), "actor", ban.actor());
+      row(source, true, "Status", status, "revoked", ban.revokedAt() == null ? "" : TIME.format(ban.revokedAt()),
+          "by", ban.revokedBy() == null ? "" : ban.revokedBy());
     });
   }
 
@@ -356,14 +395,14 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     try {
       return IpKeys.canonical(IpRange.parseLiteral(value));
     } catch (IllegalArgumentException e) {
-      error(source, "Нужен IP-адрес или ник игрока онлайн: " + value);
+      error(source, "Expected an IP address or the name of an online player: " + value);
       return null;
     }
   }
 
   private static String geoLine(GeoInfo geo) {
     if (geo.isUnknown()) {
-      return "нет данных";
+      return "no data";
     }
     StringBuilder out = new StringBuilder();
     if (geo.countryCode() != null) {
@@ -376,7 +415,7 @@ public final class ThirdVelocityCommand implements SimpleCommand {
       out.append(", ").append(geo.city());
     }
     if (geo.asn() > 0) {
-      out.append(out.isEmpty() ? "" : " • ").append("AS").append(geo.asn());
+      out.append(out.isEmpty() ? "" : " · ").append("AS").append(geo.asn());
       if (geo.asOrganization() != null) {
         out.append(" ").append(geo.asOrganization());
       }
@@ -386,7 +425,7 @@ public final class ThirdVelocityCommand implements SimpleCommand {
 
   private CompletableFuture<?> check(CommandSource source, String[] args) {
     if (args.length != 1) {
-      error(source, "Использование: /tv check <ip|игрок>");
+      usage(source, "check");
       return done();
     }
     InetAddress address = resolveAddress(source, args[0]);
@@ -396,12 +435,11 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     return core.reputation().scan(address).thenCombine(core.altManager().address(address), (assessment, report) -> {
       sendAssessment(source, assessment);
       Optional<Ban> ban = core.bans().matchAddress(address);
-      ban.ifPresent(b -> send(source, " <red>Забанен:</red> <white>#<id> <target>", "id", Long.toString(b.id()),
-          "target", b.target().kind() + " " + b.target().value()));
-      if (core.protectionManager().temporaryBlocks().contains(address.getHostAddress())) {
-        send(source, " <red>Временно заблокирован лимитом подключений.");
-      }
-      send(source, " <gray>Аккаунты на адресе: <white><list>", "list", report.accounts().isEmpty() ? "нет"
+      boolean blocked = core.protectionManager().temporaryBlocks().contains(address.getHostAddress());
+      row(source, false, "Banned", ban.map(b -> "<red>yes</red> <white>#<id> <target>").orElse("<green>no"),
+          "id", ban.map(b -> Long.toString(b.id())).orElse(""), "target", ban.map(ThirdVelocityCommand::target).orElse(""));
+      row(source, false, "Rate-limit block", blocked ? "<red>yes" : "<green>no");
+      row(source, true, "Accounts", "<white><list>", "list", report.accounts().isEmpty() ? "none"
           : report.accounts().stream().limit(15).map(Observation::name).collect(Collectors.joining(", ")));
       return null;
     });
@@ -414,46 +452,52 @@ public final class ThirdVelocityCommand implements SimpleCommand {
       case FLAG -> "yellow";
       case DENY -> "red";
     };
-    send(source, "<gold>IP <white><ip></white>: <" + color + "><verdict></" + color + "> <gray>(оценка <score>,"
-            + " пороги <flag>/<deny>)",
+    head(source, "<white><b><ip></b></white> <" + color + "><verdict></" + color + ">"
+            + " <dark_gray>· score <score> · flag at <flag>, deny at <deny>",
         "ip", assessment.address().getHostAddress(), "verdict", assessment.verdict().name(),
         "score", Integer.toString(assessment.score()), "flag", Integer.toString(thresholds[0]),
         "deny", Integer.toString(thresholds[1]));
-    send(source, " <gray>GeoIP: <white><geo>", "geo", geoLine(assessment.geo()));
-    send(source, " <gray>Списки: <white><tags>", "tags",
-        assessment.tags().isEmpty() ? "нет" : String.join(", ", assessment.tags()));
+    row(source, false, "GeoIP", "<white><geo>", "geo", geoLine(assessment.geo()));
+    row(source, false, "Lists", "<white><tags>", "tags",
+        assessment.tags().isEmpty() ? "none" : String.join(", ", assessment.tags()));
     for (Signal signal : assessment.signals()) {
-      send(source, "  <dark_gray>•</dark_gray> <white><points></white> <gray><detail> <dark_gray>(<id>)",
-          "points", (signal.points() > 0 ? "+" : "") + signal.points(), "detail", signal.detail(), "id", signal.id());
+      send(source, "<dark_gray>  │   •</dark_gray> <" + (signal.points() > 0 ? "yellow" : "green") + "><points></"
+              + (signal.points() > 0 ? "yellow" : "green") + "> <gray><detail>",
+          "points", (signal.points() > 0 ? "+" : "") + signal.points(), "detail", signal.detail());
     }
   }
 
   private CompletableFuture<?> alts(CommandSource source, String[] args) {
     if (args.length != 1) {
-      error(source, "Использование: /tv alts <ник>");
+      usage(source, "alts");
       return done();
     }
     return core.alts().alts(args[0]).thenAccept(report -> {
-      send(source, "<gold>Связанные аккаунты <white><name></white>: <white><count></white> <gray>(адресов: <ips>)",
+      head(source, "<white><b><name></b></white> <dark_gray>· linked accounts:</dark_gray> <white><count></white>"
+              + " <dark_gray>· addresses:</dark_gray> <white><ips>",
           "name", report.subject(), "count", Integer.toString(report.links().size()),
           "ips", Integer.toString(report.addresses().size()));
+      if (report.links().isEmpty()) {
+        send(source, LAST + "<gray>none");
+      }
       for (AltLink link : report.links().stream().limit(25).toList()) {
         String color = link.confidence() >= 0.8 ? "red" : link.confidence() >= 0.5 ? "yellow" : "gray";
-        send(source, " <" + color + "><percent>%</" + color + "> <white><name></white><banned> <dark_gray>"
-                + "<reasons> • <shared> • <seen>",
+        send(source, "<dark_gray>  •</dark_gray> <" + color + "><percent>%</" + color + "> <white><name></white>"
+                + "<red><banned></red>" + DOT + "<gray><reasons></gray>" + DOT + "<gray><shared></gray>"
+                + DOT + "<dark_gray>seen <seen>",
             "percent", Long.toString(Math.round(link.confidence() * 100)), "name", link.name(),
-            "banned", link.ban() == null ? "" : " [БАН #" + link.ban().id() + "]",
-            "reasons", link.reasons().stream().map(Enum::name).map(r -> r.toLowerCase(Locale.ROOT))
-                .collect(Collectors.joining(",")),
+            "banned", link.ban() == null ? "" : " banned #" + link.ban().id(),
+            "reasons", link.reasons().stream().map(Enum::name).map(r -> r.toLowerCase(Locale.ROOT).replace('_', ' '))
+                .collect(Collectors.joining(", ")),
             "shared", String.join(", ", link.sharedAddresses().stream().limit(3).toList()),
-            "seen", link.lastSeen() == null ? "-" : TIME.format(link.lastSeen()));
+            "seen", link.lastSeen() == null ? "never" : TIME.format(link.lastSeen()));
       }
     });
   }
 
   private CompletableFuture<?> ip(CommandSource source, String[] args) {
     if (args.length != 1) {
-      error(source, "Использование: /tv ip <ip|игрок>");
+      usage(source, "ip");
       return done();
     }
     InetAddress address = resolveAddress(source, args[0]);
@@ -461,15 +505,16 @@ public final class ThirdVelocityCommand implements SimpleCommand {
       return done();
     }
     return core.alts().address(address).thenAccept(report -> {
-      send(source, "<gold>Адрес <white><ip></white>: аккаунтов <white><count>", "ip", report.address(),
+      head(source, "<white><b><ip></b></white> <dark_gray>· accounts:</dark_gray> <white><count>", "ip", report.address(),
           "count", Integer.toString(report.accounts().size()));
       for (Observation account : report.accounts().stream().limit(25).toList()) {
-        send(source, " <white><name></white> <gray>входов <logins>, последний <seen><auth>",
+        send(source, "<dark_gray>  •</dark_gray> <white><name></white>" + DOT + "<gray><logins> logins</gray>"
+                + DOT + "<gray>last <seen></gray><green><auth>",
             "name", account.name(), "logins", Long.toString(account.connections()),
-            "seen", TIME.format(account.lastSeen()), "auth", account.authenticated() ? ", с паролем" : "");
+            "seen", TIME.format(account.lastSeen()), "auth", account.authenticated() ? " · password" : "");
       }
       if (!report.relatedAddresses().isEmpty()) {
-        send(source, " <gray>Связанные адреса: <white><list>", "list", report.relatedAddresses().entrySet().stream()
+        row(source, true, "Related addresses", "<white><list>", "list", report.relatedAddresses().entrySet().stream()
             .limit(15).map(e -> e.getKey() + " (" + e.getValue() + ")").collect(Collectors.joining(", ")));
       }
     });
@@ -477,11 +522,11 @@ public final class ThirdVelocityCommand implements SimpleCommand {
 
   private CompletableFuture<?> history(CommandSource source, String[] args) {
     if (args.length != 1) {
-      error(source, "Использование: /tv history <ник>");
+      usage(source, "history");
       return done();
     }
     return core.alts().history(args[0]).thenAccept(rows -> {
-      send(source, "<gold>Адреса <white><name></white>: <white><count>", "name", args[0],
+      head(source, "<white><b><name></b></white> <dark_gray>· addresses:</dark_gray> <white><count>", "name", args[0],
           "count", Integer.toString(rows.size()));
       for (Observation row : rows.stream().limit(25).toList()) {
         GeoInfo geo = GeoInfo.UNKNOWN;
@@ -490,61 +535,64 @@ public final class ThirdVelocityCommand implements SimpleCommand {
         } catch (IllegalArgumentException ignored) {
           // Corrupt row.
         }
-        send(source, " <white><ip></white> <gray><geo> • входов <logins> • <first> — <last><auth>",
+        send(source, "<dark_gray>  •</dark_gray> <white><ip></white>" + DOT + "<gray><geo></gray>" + DOT
+                + "<gray><logins> logins</gray>" + DOT + "<dark_gray><first> → <last></dark_gray><green><auth>",
             "ip", row.address(), "geo", geoLine(geo), "logins", Long.toString(row.connections()),
             "first", TIME.format(row.firstSeen()), "last", TIME.format(row.lastSeen()),
-            "auth", row.authenticated() ? " • с паролем" : "");
+            "auth", row.authenticated() ? " · password" : "");
       }
     });
   }
 
   private CompletableFuture<?> client(CommandSource source, String[] args) {
     if (args.length != 1) {
-      error(source, "Использование: /tv client <игрок>");
+      usage(source, "client");
       return done();
     }
     Optional<Player> player = core.server().getPlayer(args[0]);
     Optional<ClientInfo> info = player.flatMap(p -> core.clients().get(p.getUniqueId()));
     if (info.isEmpty()) {
-      error(source, "Игрок не в сети.");
+      error(source, "The player is offline.");
       return done();
     }
     ClientInfo c = info.get();
-    send(source, "<gold>Клиент <white><name></white>: <white><loader></white> <gray><version> (протокол <protocol>)",
-        "name", c.name(), "loader", c.loader().name(), "version", c.version(),
-        "protocol", Integer.toString(c.protocol()));
-    send(source, " <gray>Brand: <white><brand></white>  Язык: <white><locale></white>  Дальность: <white><view>",
-        "brand", c.brand() == null ? "-" : c.brand(), "locale", c.locale() == null ? "-" : c.locale(),
-        "view", c.viewDistance() < 0 ? "-" : Integer.toString(c.viewDistance()));
-    send(source, " <gray>Определено: <white><detections>", "detections", c.detections().isEmpty() ? "ничего"
-        : c.detections().stream().map(d -> d.label() + " (" + d.kind() + ")").collect(Collectors.joining(", ")));
-    send(source, " <gray>Моды/неймспейсы (<count>): <white><mods>", "count", Integer.toString(c.mods().size()),
-        "mods", c.mods().isEmpty() ? "-" : String.join(", ", c.mods().stream().limit(40).toList()));
-    send(source, " <gray>UUID при входе: <white><uuid></white> <dark_gray>(<offline>)",
-        "uuid", c.loginUuid() == null ? "-" : c.loginUuid().toString(),
-        "offline", c.offlineUuidMatches() == null ? "n/a"
-            : c.offlineUuidMatches() ? "стандартный offline" : "НЕ offline UUID");
-    send(source, " <gray>Отпечаток: <white><fp>", "fp", c.fingerprint());
+    head(source, "<white><b><name></b></white> <dark_gray>· client", "name", c.name());
+    row(source, false, "Loader", "<white><loader></white> <dark_gray><version> · protocol <protocol>",
+        "loader", c.loader().name().toLowerCase(Locale.ROOT), "version", c.version(), "protocol", Integer.toString(c.protocol()));
+    row(source, false, "Brand", "<white><brand>", "brand", c.brand() == null ? "not sent" : c.brand());
+    row(source, false, "Language", "<white><locale></white>" + DOT + "<gray>view distance</gray> <white><view>",
+        "locale", c.locale() == null ? "not sent" : c.locale(),
+        "view", c.viewDistance() < 0 ? "not sent" : Integer.toString(c.viewDistance()));
+    row(source, false, "Detected", c.detections().isEmpty() ? "<green>nothing" : "<yellow><detections>",
+        "detections", c.detections().stream().map(d -> d.label() + " (" + d.kind() + ")").collect(Collectors.joining(", ")));
+    row(source, false, "Mods", "<white><mods></white> <dark_gray>(<count>)", "count", Integer.toString(c.mods().size()),
+        "mods", c.mods().isEmpty() ? "none" : String.join(", ", c.mods().stream().limit(40).toList()));
+    row(source, false, "Login UUID", "<white><uuid></white> <dark_gray><offline>",
+        "uuid", c.loginUuid() == null ? "not sent" : c.loginUuid().toString(),
+        "offline", c.offlineUuidMatches() == null ? "" : c.offlineUuidMatches() ? "standard offline" : "not an offline UUID");
+    row(source, true, "Fingerprint", "<dark_gray><fp>", "fp", c.fingerprint());
     return done();
   }
 
   private void sendStatus(CommandSource source, String title, List<DatabaseStatus> statuses) {
-    send(source, "<gold><title>", "title", title);
-    for (DatabaseStatus status : statuses) {
-      send(source, " <state> <white><name></white> <gray>записей <entries> • сборка <build><error>",
-          "state", status.loaded() ? "✔" : "✘", "name", status.name(),
-          "entries", status.entries() < 0 ? "-" : Long.toString(status.entries()),
-          "build", status.buildTime() == null ? "-" : TIME.format(status.buildTime()),
-          "error", status.lastError() == null ? "" : " • " + status.lastError());
+    head(source, "<white><b><title></b></white>", "title", title);
+    for (int i = 0; i < statuses.size(); i++) {
+      DatabaseStatus status = statuses.get(i);
+      send(source, (i == statuses.size() - 1 ? LAST : BRANCH) + (status.loaded() ? "<green>✔" : "<red>✘")
+              + " <white><name></white>" + DOT + "<gray><entries> entries</gray>" + DOT + "<dark_gray>built <build>"
+              + "</dark_gray><red><error>",
+          "name", status.name(), "entries", status.entries() < 0 ? "?" : Long.toString(status.entries()),
+          "build", status.buildTime() == null ? "never" : TIME.format(status.buildTime()),
+          "error", status.lastError() == null ? "" : " · " + status.lastError());
     }
   }
 
   private CompletableFuture<?> geoip(CommandSource source, String[] args) {
     if (args.length > 0 && args[0].equalsIgnoreCase("update")) {
-      send(source, "<gray>Обновляю базы GeoIP…");
+      head(source, "<gray>Updating GeoIP databases…");
       return core.geoIp().update().thenAccept(statuses -> {
         core.reputationManager().invalidate();
-        sendStatus(source, "GeoIP после обновления", statuses);
+        sendStatus(source, "GeoIP updated", statuses);
       });
     }
     sendStatus(source, "GeoIP", core.geoIp().status());
@@ -553,25 +601,27 @@ public final class ThirdVelocityCommand implements SimpleCommand {
 
   private CompletableFuture<?> lists(CommandSource source, String[] args) {
     if (args.length > 0 && args[0].equalsIgnoreCase("update")) {
-      send(source, "<gray>Обновляю IP-списки…");
-      return core.ipLists().update().thenAccept(statuses -> sendStatus(source, "IP-списки после обновления", statuses));
+      head(source, "<gray>Updating IP lists…");
+      return core.ipLists().update().thenAccept(statuses -> sendStatus(source, "IP lists updated", statuses));
     }
-    sendStatus(source, "IP-списки", core.ipLists().status());
+    sendStatus(source, "IP lists", core.ipLists().status());
     return done();
   }
 
   private CompletableFuture<?> attack(CommandSource source) {
     TrafficSnapshot t = core.protection().traffic();
-    send(source, "<gold>Уровень атаки: <white><level>", "level", core.protection().level().name());
-    send(source, " <gray>За секунду: подключений <white><conn></white>, отклонено <white><blocked></white>,"
-            + " входов <white><hs></white>, пингов <white><pings>",
+    head(source, "<white><b>Shield</b></white> <white><level>", "level", core.protection().level().name());
+    row(source, false, "Per second", "<white><conn></white> <gray>connections</gray>" + DOT + "<white><blocked></white>"
+            + " <gray>refused</gray>" + DOT + "<white><hs></white> <gray>logins</gray>" + DOT + "<white><pings></white> <gray>pings",
         "conn", Long.toString(t.connections()), "blocked", Long.toString(t.blocked()),
         "hs", Long.toString(t.handshakes()), "pings", Long.toString(t.pings()));
-    send(source, " <gray>Трафик: вход <white><in></white> КБ/с, выход <white><out></white> КБ/с,"
-            + " <white><packets></white> пакетов/с, открыто <white><open>",
+    row(source, false, "Traffic", "<white><in></white> <gray>KB/s in</gray>" + DOT + "<white><out></white> <gray>KB/s out</gray>"
+            + DOT + "<white><packets></white> <gray>packets/s",
         "in", Long.toString(t.inboundBytes() / 1024), "out", Long.toString(t.outboundBytes() / 1024),
-        "packets", Long.toString(t.outboundPackets()), "open", Long.toString(t.openConnections()));
-    send(source, " <gray>Временных блокировок: <white><blocks></white>, известных адресов: <white><known>",
+        "packets", Long.toString(t.outboundPackets()));
+    row(source, true, "Connections", "<white><open></white> <gray>open</gray>" + DOT + "<white><blocks></white>"
+            + " <gray>blocked</gray>" + DOT + "<white><known></white> <gray>known addresses",
+        "open", Long.toString(t.openConnections()),
         "blocks", Integer.toString(core.protection().temporaryBlocks().size()),
         "known", Integer.toString(core.protectionManager().knownAddresses().size()));
     return done();
@@ -579,15 +629,15 @@ public final class ThirdVelocityCommand implements SimpleCommand {
 
   private CompletableFuture<?> unblock(CommandSource source, String[] args) {
     if (args.length != 1) {
-      error(source, "Использование: /tv unblock <ip>");
+      usage(source, "unblock");
       return done();
     }
     InetAddress address = resolveAddress(source, args[0]);
     if (address != null) {
       if (core.protectionManager().unblock(address)) {
-        send(source, "<green>Временная блокировка снята.");
+        ok(source, "Temporary block lifted.");
       } else {
-        error(source, "Адрес не заблокирован.");
+        error(source, "The address is not blocked.");
       }
     }
     return done();
@@ -596,9 +646,9 @@ public final class ThirdVelocityCommand implements SimpleCommand {
   private CompletableFuture<?> reload(CommandSource source) {
     try {
       core.reload();
-      send(source, "<green>Конфиги ThirdVelocity перечитаны.");
+      ok(source, "ThirdVelocity configs reloaded.");
     } catch (Exception e) {
-      error(source, "Конфиг не применён: " + e.getMessage());
+      error(source, "Config not applied: " + e.getMessage());
     }
     return done();
   }

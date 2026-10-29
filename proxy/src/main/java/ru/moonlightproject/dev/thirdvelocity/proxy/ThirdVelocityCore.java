@@ -371,7 +371,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
               : Duration.between(Instant.now(), source.expiresAt());
           if (remaining == null || !remaining.isNegative()) {
             bans.ban(new BanRequest(new BanTarget.Name(player.getUsername()),
-                "Обход бана (" + evasion.name() + ")", "ThirdVelocity", remaining));
+                "Ban evasion (" + evasion.name() + ")", "ThirdVelocity", remaining));
           }
         }
         default -> {

@@ -95,17 +95,17 @@ public final class Durations {
     long secs = seconds % 60;
     StringBuilder out = new StringBuilder();
     if (days > 0) {
-      out.append(days).append("д ");
+      out.append(days).append("d ");
     }
     if (hours > 0) {
-      out.append(hours).append("ч ");
+      out.append(hours).append("h ");
     }
     if (minutes > 0 && days == 0) {
-      out.append(minutes).append("м ");
+      out.append(minutes).append("m ");
     }
     if (secs > 0 && days == 0 && hours == 0) {
-      out.append(secs).append("с ");
+      out.append(secs).append("s ");
     }
-    return out.isEmpty() ? "0с" : out.toString().trim();
+    return out.isEmpty() ? "0s" : out.toString().trim();
   }
 }
