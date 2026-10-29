@@ -40,6 +40,14 @@ public interface ProtectionService {
   TrafficSnapshot traffic();
 
   /**
+   * Returns cumulative counters since start. Fast.
+   *
+   * @return counters
+   * @since 1.1.0
+   */
+  ProtectionTotals totals();
+
+  /**
    * Combined suspicion check used by authentication plugins: IP verdict, name/IP behaviour and
    * client detections. Fast.
    *

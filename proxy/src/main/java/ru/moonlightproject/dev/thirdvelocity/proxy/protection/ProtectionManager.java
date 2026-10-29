@@ -605,22 +605,12 @@ public final class ProtectionManager implements ProtectionService {
     return removed;
   }
 
-  /**
-   * Returns cumulative counters for metrics.
-   *
-   * @return name to value
-   */
-  public Map<String, Long> totals() {
-    Map<String, Long> totals = new java.util.LinkedHashMap<>();
-    totals.put("connections", connectionsTotal.get());
-    totals.put("blocked", blockedTotal.get());
-    totals.put("handshakes", handshakesTotal.get());
-    totals.put("pings", pingsTotal.get());
-    totals.put("inbound_bytes", inboundTotal.get());
-    totals.put("outbound_bytes", outboundTotal.get());
-    totals.put("outbound_packets", packetsTotal.get());
-    totals.put("temporary_blocks", temporaryBlocksTotal.get());
-    return totals;
+  @Override
+  public ru.moonlightproject.dev.thirdvelocity.api.protection.ProtectionTotals totals() {
+    return new ru.moonlightproject.dev.thirdvelocity.api.protection.ProtectionTotals(
+        connectionsTotal.get(), blockedTotal.get(), Map.copyOf(core.filter().blockedTotals()),
+        handshakesTotal.get(), pingsTotal.get(), inboundTotal.get(), outboundTotal.get(), packetsTotal.get(),
+        temporaryBlocksTotal.get(), blocks.estimatedSize(), known.size());
   }
 
   /**

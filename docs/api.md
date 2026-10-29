@@ -6,10 +6,10 @@
 
 ```kotlin
 repositories { maven("https://jitpack.io") }
-dependencies { compileOnly("com.github.Th1rdPlanet.ThirdVelocity:thirdvelocity-api:v1.0.0") }
+dependencies { compileOnly("com.github.Th1rdPlanet.ThirdVelocity:thirdvelocity-api:v1.1.0") }
 ```
 
-Локально: `./gradlew :thirdvelocity-api:publishToMavenLocal` → `ru.moonlightproject:thirdvelocity-api:1.0.0`.
+Локально: `./gradlew :thirdvelocity-api:publishToMavenLocal` → `ru.moonlightproject:thirdvelocity-api:1.1.0`.
 
 ## Точка входа
 
@@ -149,6 +149,7 @@ tv.clients().online();
 ```java
 tv.protection().level();                         // AttackLevel NORMAL/LOW/MEDIUM/STRONG
 tv.protection().traffic();                       // TrafficSnapshot за последнюю секунду
+tv.protection().totals();                        // ProtectionTotals: накопительные счётчики (для Prometheus)
 tv.protection().suspicious("Player", address);   // репутация + правила клиентов + политика уровня
 tv.protection().known(address);                  // адрес уже встречался
 tv.protection().temporaryBlocks();

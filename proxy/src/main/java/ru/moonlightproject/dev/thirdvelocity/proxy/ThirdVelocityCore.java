@@ -86,7 +86,7 @@ import ru.moonlightproject.dev.thirdvelocity.proxy.util.IpKeys;
 public final class ThirdVelocityCore implements ThirdVelocityApi {
 
   /** Version of the core and its API. */
-  public static final String VERSION = "1.0.0";
+  public static final String VERSION = "1.1.0";
 
   private static final Logger LOGGER = LogManager.getLogger("ThirdVelocity");
   private static volatile @Nullable ThirdVelocityCore instance;
@@ -104,7 +104,6 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
   private final AltManager alts;
   private final ClientTracker clients;
   private final ConnectionFilter filter;
-  private final MetricsServer metrics = new MetricsServer(this);
   private final List<ScheduledFuture<?>> tasks = new java.util.concurrent.CopyOnWriteArrayList<>();
   private @Nullable Database database;
   private volatile Messages messages;
@@ -187,11 +186,6 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     }
     instance = core;
     ThirdVelocity.install(core);
-    try {
-      core.metrics.start(core.mainConfig.section("metrics"));
-    } catch (IOException | RuntimeException e) {
-      LOGGER.warn("Metrics endpoint did not start: {}", e.getMessage());
-    }
     core.registerListeners();
     core.schedule();
     ThirdVelocityCommand.register(core);
@@ -311,7 +305,6 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     ThirdVelocity.uninstall(core);
     core.tasks.forEach(task -> task.cancel(false));
     core.alts.flush();
-    core.metrics.stop();
     core.scheduler.shutdownNow();
     core.worker.shutdownNow();
     core.geoIp.close();
