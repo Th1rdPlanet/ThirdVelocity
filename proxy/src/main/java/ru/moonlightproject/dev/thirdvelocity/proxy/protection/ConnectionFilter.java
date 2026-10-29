@@ -62,6 +62,7 @@ public final class ConnectionFilter {
 
   private static final Logger LOGGER = LogManager.getLogger("ThirdVelocity");
   private static final AttributeKey<Ban> PENDING_BAN = AttributeKey.valueOf("thirdvelocity:ban");
+  private static final AttributeKey<String[]> PENDING_DENY = AttributeKey.valueOf("thirdvelocity:deny");
 
   /** What to do with a banned address at accept time. */
   public enum BanAction {
@@ -84,6 +85,7 @@ public final class ConnectionFilter {
   private volatile boolean resetOnDrop = true;
   private volatile boolean enforceReputation = true;
   private volatile BlockLog blockLog = BlockLog.SUMMARY;
+  private volatile java.util.Set<String> messageReasons = java.util.Set.of();
   private volatile PrefixIndex<Boolean> trustedProxies = PrefixIndex.<Boolean>builder().build();
   private volatile boolean requireTrustedProxy;
   private volatile List<Pattern> allowedHosts = List.of();
@@ -116,6 +118,16 @@ public final class ConnectionFilter {
     ConfigNode early = protection.section("early-filter");
     resetOnDrop = early.bool("reset-connection", true);
     blockLog = early.enumValue("log", BlockLog.SUMMARY);
+    java.util.Set<String> reasons = new java.util.HashSet<>();
+    for (String reason : early.strings("show-message-for")) {
+      String lower = reason.toLowerCase(Locale.ROOT);
+      if (!List.of("reputation", "attack", "concurrency", "rate").contains(lower)) {
+        throw new ConfigNode.ConfigException("protection.yml: early-filter.show-message-for accepts reputation, attack,"
+            + " concurrency, rate");
+      }
+      reasons.add(lower);
+    }
+    messageReasons = java.util.Set.copyOf(reasons);
     enforceReputation = reputation.bool("enforce-deny", true);
     ConfigNode proxy = protection.section("proxy-protocol");
     PrefixIndex.Builder<Boolean> proxies = PrefixIndex.builder();
@@ -239,6 +251,21 @@ public final class ConnectionFilter {
     };
   }
 
+  /**
+   * Refuses the connection: closes it now, or lets it reach the login handshake to show a
+   * MiniMessage text when the reason is listed in {@code early-filter.show-message-for}.
+   */
+  private boolean refuse(Channel channel, InetAddress address, String reason, String detail, String score) {
+    if (!messageReasons.contains(reason)) {
+      block(channel, address, "accept", reason, detail);
+      return false;
+    }
+    channel.attr(PENDING_DENY).set(new String[] {reason, detail, score});
+    Runnable release = core.protectionManager().admit(address);
+    channel.closeFuture().addListener(f -> release.run());
+    return true;
+  }
+
   private boolean admit(Channel channel, InetAddress address) {
     ProtectionManager protection = core.protectionManager();
     // Bans apply to trusted networks too; trust only skips limits and scoring.
@@ -259,17 +286,16 @@ public final class ConnectionFilter {
     }
     String reason = protection.checkAccept(address);
     if (reason != null) {
-      block(channel, address, "accept", reason, protection.level().name());
-      return false;
+      return refuse(channel, address, reason, protection.level().name(), "");
     }
     IpAssessment assessment = core.reputation().assess(address);
     if (enforceReputation && assessment.verdict() == Verdict.DENY) {
-      block(channel, address, "accept", "reputation", "score " + assessment.score());
-      return false;
+      return refuse(channel, address, "reputation", "score " + assessment.score(),
+          Integer.toString(assessment.score()));
     }
     if (protection.denyByVerdict(assessment.verdict())) {
-      block(channel, address, "accept", "attack", "flagged during " + protection.level());
-      return false;
+      return refuse(channel, address, "attack", "flagged during " + protection.level(),
+          Integer.toString(assessment.score()));
     }
     Runnable release = protection.admit(address);
     channel.closeFuture().addListener(f -> release.run());
@@ -296,6 +322,19 @@ public final class ConnectionFilter {
     boolean trusted = protection.trusted(address);
     if (login) {
       protection.countHandshake();
+    }
+    String[] deny = channel.attr(PENDING_DENY).get();
+    if (deny != null) {
+      core.protectionManager().countBlocked();
+      blockedByReason.computeIfAbsent(deny[0], k -> new LongAdder()).increment();
+      if (eventThrottle.asMap().putIfAbsent(address, Boolean.TRUE) == null) {
+        core.fire(new ConnectionBlockedEvent(address, "handshake", deny[0], deny[1]));
+      }
+      if (!login) {
+        return Component.empty();
+      }
+      return core.messages().render("blocked-" + deny[0], "ip", address.getHostAddress(),
+          "score", deny[2], "level", core.protectionManager().level().name());
     }
     Ban pending = channel.attr(PENDING_BAN).get();
     if (pending != null) {

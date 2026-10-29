@@ -12,6 +12,11 @@ early-filter:
   reset-connection: true
   # Логирование отклонённых соединений: NONE, SUMMARY (сводка раз в 30 с), EACH (каждое).
   log: SUMMARY
+  # Для каких причин вместо молчаливого сброса показать игроку сообщение (MiniMessage из
+  # messages.yml → blocked-<причина>). Соединение тогда доходит до входа, поэтому для
+  # флуда (rate, concurrency) лучше оставлять сброс. Причины: reputation, attack,
+  # concurrency, rate.
+  show-message-for: [reputation, attack]
 
 rate-limit:
   # Окно счётчиков подключений (секунды). Лимиты на окно задаются в attack.levels.

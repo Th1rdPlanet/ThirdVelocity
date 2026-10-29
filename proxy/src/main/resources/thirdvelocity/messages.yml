@@ -11,3 +11,9 @@ client-kick: "<red>Ваш клиент запрещён на сервере: <wh
 client-kick-custom: "<red><message>"
 staff-alts: "<gold>[TV]</gold> <white><player></white> <gray>связан с: <yellow><alts>"
 staff-evasion: "<red>[TV] Возможный обход бана:</red> <white><player></white> <gray>связан с забаненным <red><banned></red> <dark_gray>(<alts>)"
+# Отказ раннего фильтра (см. protection.yml → early-filter.show-message-for).
+# Плейсхолдеры: <ip>, <score> (оценка репутации), <level> (уровень атаки).
+blocked-reputation: "<red><b>Подключение отклонено</b></red>\n\n<gray>Ваш IP-адрес <white><ip></white> помечен как подозрительный.\n<gray>Если это ошибка, отключите VPN/прокси или обратитесь к администрации."
+blocked-attack: "<red><b>Сервер под атакой</b></red>\n\n<gray>Сейчас пускаем только проверенные адреса. Попробуйте позже."
+blocked-concurrency: "<red>Слишком много подключений с вашего адреса."
+blocked-rate: "<red>Слишком частые подключения. Подождите немного."
