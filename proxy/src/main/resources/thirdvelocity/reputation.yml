@@ -15,7 +15,7 @@ thresholds:
   flag: 30
   deny: 100
 
-# Очки за теги IP-списков из intel.yml.
+# Очки за теги IP-списков из ip-lists.yml.
 tags:
   tor: 60
   vpn: 35

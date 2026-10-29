@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -199,7 +200,9 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
   private void loadConfigs() throws IOException {
     ConfigNode main = ConfigNode.load(directory.resolve("config.yml"), "thirdvelocity/config.yml");
     ConfigNode protectionConfig = ConfigNode.load(directory.resolve("protection.yml"), "thirdvelocity/protection.yml");
-    ConfigNode intel = ConfigNode.load(directory.resolve("intel.yml"), "thirdvelocity/intel.yml");
+    migrateIntelConfig();
+    ConfigNode geoipConfig = ConfigNode.load(directory.resolve("geoip.yml"), "thirdvelocity/geoip.yml");
+    ConfigNode ipListsConfig = ConfigNode.load(directory.resolve("ip-lists.yml"), "thirdvelocity/ip-lists.yml");
     ConfigNode reputationConfig = ConfigNode.load(directory.resolve("reputation.yml"), "thirdvelocity/reputation.yml");
     ConfigNode altsConfig = ConfigNode.load(directory.resolve("alts.yml"), "thirdvelocity/alts.yml");
     ConfigNode clientsConfig = ConfigNode.load(directory.resolve("clients.yml"), "thirdvelocity/clients.yml");
@@ -207,8 +210,8 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     // Parse everything first; apply only if the whole set is valid.
     bans.apply(main.section("bans"));
     protection.apply(protectionConfig);
-    geoIp.apply(intel.section("geoip"));
-    ipLists.apply(intel.section("ip-lists"));
+    geoIp.apply(geoipConfig);
+    ipLists.apply(ipListsConfig);
     reputation.apply(reputationConfig);
     alts.apply(altsConfig);
     clients.apply(clientsConfig);
@@ -217,6 +220,35 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     messages = new Messages(messageConfig);
     mainConfig = main;
     reputation.invalidate();
+  }
+
+  /**
+   * Versions before the split kept GeoIP and IP lists in one {@code intel.yml}. Its sections are
+   * written to {@code geoip.yml} and {@code ip-lists.yml} (values only, comments are lost) and the
+   * old file is renamed to {@code intel.yml.old}.
+   */
+  @SuppressWarnings("unchecked")
+  private void migrateIntelConfig() throws IOException {
+    Path legacy = directory.resolve("intel.yml");
+    if (!java.nio.file.Files.isRegularFile(legacy)) {
+      return;
+    }
+    Map<String, Object> root = new org.yaml.snakeyaml.Yaml(new org.yaml.snakeyaml.constructor.SafeConstructor(
+        new org.yaml.snakeyaml.LoaderOptions())).load(java.nio.file.Files.readString(legacy));
+    org.yaml.snakeyaml.DumperOptions options = new org.yaml.snakeyaml.DumperOptions();
+    options.setDefaultFlowStyle(org.yaml.snakeyaml.DumperOptions.FlowStyle.BLOCK);
+    org.yaml.snakeyaml.Yaml dumper = new org.yaml.snakeyaml.Yaml(options);
+    for (String[] part : new String[][] {{"geoip", "geoip.yml"}, {"ip-lists", "ip-lists.yml"}}) {
+      Path target = directory.resolve(part[1]);
+      Object section = root == null ? null : root.get(part[0]);
+      if (section instanceof Map<?, ?> map && java.nio.file.Files.notExists(target)) {
+        java.nio.file.Files.writeString(target, "# Перенесено из intel.yml. Прокомментированный образец — в jar,"
+            + " thirdvelocity/" + part[1] + "\n" + dumper.dump(map));
+      }
+    }
+    java.nio.file.Files.move(legacy, directory.resolve("intel.yml.old"),
+        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+    LOGGER.warn("intel.yml was split into geoip.yml and ip-lists.yml; the old file is kept as intel.yml.old");
   }
 
   /**

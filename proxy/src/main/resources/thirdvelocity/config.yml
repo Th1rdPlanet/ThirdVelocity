@@ -1,5 +1,5 @@
 # ThirdVelocity — config.yml
-# Основные настройки ядра. Остальное: protection.yml, intel.yml, reputation.yml,
+# Основные настройки ядра. Остальное: protection.yml, geoip.yml, ip-lists.yml, reputation.yml,
 # alts.yml, clients.yml, messages.yml. Перечитать: /tv reload (кроме storage).
 
 # Полностью выключить ядро ThirdVelocity (прокси работает как обычный Velocity).

@@ -1,0 +1,31 @@
+# ThirdVelocity — ip-lists.yml
+# Списки адресов (Tor, VPN, хостинги, блоклисты, свои). Ручное обновление: /tv lists update.
+# Каждый список назначает теги, а reputation.yml → tags даёт очки за тег.
+
+enabled: true
+directory: lists
+update-interval: 6h
+# format: PLAIN (IP, CIDR или диапазон a-b в строке; # и ; — комментарии) или
+# SPAMHAUS_JSON. Список без url читается из file (свой локальный список).
+lists:
+  tor:
+    url: "https://check.torproject.org/torbulkexitlist"
+    tags: [tor]
+  vpn:
+    url: "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/vpn/ipv4.txt"
+    tags: [vpn]
+  hosting:
+    url: "https://raw.githubusercontent.com/X4BNet/lists_vpn/main/output/datacenter/ipv4.txt"
+    tags: [hosting]
+  firehol-level1:
+    url: "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"
+    tags: [blocklist]
+  spamhaus-drop:
+    enabled: false
+    url: "https://www.spamhaus.org/drop/drop_v4.json"
+    format: SPAMHAUS_JSON
+    tags: [blocklist]
+  custom:
+    enabled: false
+    file: custom.txt
+    tags: [custom]

@@ -31,7 +31,7 @@ java -jar proxy/build/libs/velocity-proxy-*-all.jar
 ```
 
 Нужна Java 25 (как у upstream Velocity 4.x). При первом запуске создаётся папка
-`thirdvelocity/` с конфигами: `config.yml`, `protection.yml`, `intel.yml`,
+`thirdvelocity/` с конфигами: `config.yml`, `protection.yml`, `geoip.yml`, `ip-lists.yml`,
 `reputation.yml`, `alts.yml`, `clients.yml`, `messages.yml`. Все параметры
 прокомментированы. `/tv reload` применяет изменения без перезапуска (кроме `storage`).
 

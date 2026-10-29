@@ -21,7 +21,7 @@ weights:
 shared-address-threshold: 4
 # То же для одинакового отпечатка (ванильные клиенты часто совпадают).
 shared-fingerprint-threshold: 3
-# Множитель веса для IP с тегами анонимайзеров из intel.yml.
+# Множитель веса для IP с тегами анонимайзеров из ip-lists.yml.
 anonymizer-factor: 0.3
 anonymizer-tags: [tor, vpn, hosting]
 

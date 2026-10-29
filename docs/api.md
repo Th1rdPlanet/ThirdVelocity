@@ -90,7 +90,7 @@ tv.geoIp().status();                        // List<DatabaseStatus>
 
 ```java
 Set<String> tags = tv.ipLists().tags(address);    // fast: {"tor"}, {"vpn","hosting"}…
-Set<String> lists = tv.ipLists().lists(address);  // имена списков из intel.yml
+Set<String> lists = tv.ipLists().lists(address);  // имена списков из ip-lists.yml
 ```
 
 ### ReputationService
