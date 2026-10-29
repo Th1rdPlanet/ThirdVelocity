@@ -104,6 +104,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
   private final AltManager alts;
   private final ClientTracker clients;
   private final ConnectionFilter filter;
+  private final MetricsServer metrics = new MetricsServer(this);
   private final List<ScheduledFuture<?>> tasks = new java.util.concurrent.CopyOnWriteArrayList<>();
   private @Nullable Database database;
   private volatile Messages messages;
@@ -186,6 +187,11 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     }
     instance = core;
     ThirdVelocity.install(core);
+    try {
+      core.metrics.start(core.mainConfig.section("metrics"));
+    } catch (IOException | RuntimeException e) {
+      LOGGER.warn("Metrics endpoint did not start: {}", e.getMessage());
+    }
     core.registerListeners();
     core.schedule();
     ThirdVelocityCommand.register(core);
@@ -267,6 +273,8 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     ConfigNode storage = mainConfig.section("storage");
     int sync = storage.integer("sync-seconds", 10, 1, 3600);
     tasks.add(scheduler.scheduleAtFixedRate(protection::tick, 1, 1, TimeUnit.SECONDS));
+    tasks.add(scheduler.scheduleAtFixedRate(safe(protection::flushFirewall), 1, 1, TimeUnit.SECONDS));
+    tasks.add(scheduler.scheduleAtFixedRate(safe(alts::flush), 500, 500, TimeUnit.MILLISECONDS));
     tasks.add(scheduler.scheduleAtFixedRate(safe(bans::sync), sync, sync, TimeUnit.SECONDS));
     tasks.add(scheduler.scheduleAtFixedRate(safe(filter::logSummary), 30, 30, TimeUnit.SECONDS));
     tasks.add(scheduler.scheduleAtFixedRate(safe(reputation::cleanup), 5, 5, TimeUnit.MINUTES));
@@ -302,6 +310,8 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     instance = null;
     ThirdVelocity.uninstall(core);
     core.tasks.forEach(task -> task.cancel(false));
+    core.alts.flush();
+    core.metrics.stop();
     core.scheduler.shutdownNow();
     core.worker.shutdownNow();
     core.geoIp.close();

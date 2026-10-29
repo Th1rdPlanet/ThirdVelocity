@@ -79,6 +79,8 @@ public final class ConnectionFilter {
 
   private final ThirdVelocityCore core;
   private final Map<String, LongAdder> blockedByReason = new ConcurrentHashMap<>();
+  private final Map<String, LongAdder> blockedTotals = new ConcurrentHashMap<>();
+  private final StatusCache statusCache = new StatusCache();
   private final Cache<InetAddress, Boolean> eventThrottle = Caffeine.newBuilder()
       .expireAfterWrite(1, TimeUnit.SECONDS).maximumSize(100_000).build();
   private volatile BanAction banAction = BanAction.DROP;
@@ -96,6 +98,7 @@ public final class ConnectionFilter {
   private volatile List<Pattern> deniedNames = List.of();
   private volatile int maxNamesPerAddress = 0;
   private volatile boolean encryptOffline;
+  private volatile int deferAcceptSeconds;
 
   /**
    * Creates the filter.
@@ -154,11 +157,50 @@ public final class ConnectionFilter {
     deniedNames = List.copyOf(denied);
     maxNamesPerAddress = login.integer("max-names-per-address", 0, 0, 10_000);
     encryptOffline = protection.section("security").bool("encrypt-offline-connections", true);
+    deferAcceptSeconds = protection.section("network").integer("defer-accept-seconds", 5, 0, 60);
+    ConfigNode cache = protection.section("status-cache");
+    statusCache.configure(cache.bool("enabled", true),
+        cache.enumValue("minimum-level", ru.moonlightproject.dev.thirdvelocity.api.protection.AttackLevel.LOW),
+        cache.integer("ttl-millis", 1500, 100, 60_000));
+  }
+
+  private void count(String reason) {
+    blockedByReason.computeIfAbsent(reason, k -> new LongAdder()).increment();
+    blockedTotals.computeIfAbsent(reason, k -> new LongAdder()).increment();
+  }
+
+  /**
+   * Returns the TCP_DEFER_ACCEPT timeout for the listener (0 = off). Read once at bind time.
+   *
+   * @return seconds
+   */
+  public int deferAcceptSeconds() {
+    return deferAcceptSeconds;
+  }
+
+  /**
+   * Returns refusals per reason since start (for metrics).
+   *
+   * @return reason to count
+   */
+  public Map<String, Long> blockedTotals() {
+    Map<String, Long> result = new TreeMap<>();
+    blockedTotals.forEach((reason, adder) -> result.put(reason, adder.sum()));
+    return result;
+  }
+
+  /**
+   * Returns the status response cache, or {@code null} when it is not active at the current level.
+   *
+   * @return cache or {@code null}
+   */
+  public @Nullable StatusCache activeStatusCache() {
+    return statusCache.active(core.protectionManager().level()) ? statusCache : null;
   }
 
   private void block(Channel channel, @Nullable InetAddress address, String stage, String reason, String detail) {
     core.protectionManager().countBlocked();
-    blockedByReason.computeIfAbsent(reason, k -> new LongAdder()).increment();
+    count(reason);
     if (blockLog == BlockLog.EACH) {
       LOGGER.info("refused {} at {}: {} {}", address == null ? "?" : address.getHostAddress(),
           stage, reason, detail);
@@ -326,7 +368,7 @@ public final class ConnectionFilter {
     String[] deny = channel.attr(PENDING_DENY).get();
     if (deny != null) {
       core.protectionManager().countBlocked();
-      blockedByReason.computeIfAbsent(deny[0], k -> new LongAdder()).increment();
+      count(deny[0]);
       if (eventThrottle.asMap().putIfAbsent(address, Boolean.TRUE) == null) {
         core.fire(new ConnectionBlockedEvent(address, "handshake", deny[0], deny[1]));
       }
@@ -346,7 +388,7 @@ public final class ConnectionFilter {
     }
     if (!trusted) {
       if (transfer && !allowTransferIntent) {
-        blockedByReason.computeIfAbsent("transfer", k -> new LongAdder()).increment();
+        count("transfer");
         return Component.empty();
       }
       String lower = host.toLowerCase(Locale.ROOT);
@@ -356,14 +398,14 @@ public final class ConnectionFilter {
       }
       if (badHost) {
         core.reputation().report(address, "handshake.bad-host");
-        blockedByReason.computeIfAbsent("hostname", k -> new LongAdder()).increment();
+        count("hostname");
         if (eventThrottle.asMap().putIfAbsent(address, Boolean.TRUE) == null) {
           core.fire(new ConnectionBlockedEvent(address, "handshake", "hostname", host));
         }
         return login ? core.messages().render("bad-host") : Component.empty();
       }
       if (!login && !protection.allowStatus(address)) {
-        blockedByReason.computeIfAbsent("status-rate", k -> new LongAdder()).increment();
+        count("status-rate");
         return Component.empty();
       }
     } else if (!login) {

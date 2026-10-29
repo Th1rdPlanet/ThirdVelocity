@@ -86,6 +86,34 @@ public final class IpKeys {
   }
 
   /**
+   * Returns a 64-bit key of the subnet an address belongs to, without allocating strings.
+   *
+   * @param address address
+   * @param v4Prefix IPv4 prefix length
+   * @param v6Prefix IPv6 prefix length
+   * @return key
+   */
+  public static long subnetKey(InetAddress address, int v4Prefix, int v6Prefix) {
+    byte[] raw = IpRange.canonicalBytes(address);
+    if (raw.length == 4) {
+      long value = v4(raw);
+      long masked = v4Prefix == 0 ? 0 : value & (0xffffffffL << (32 - v4Prefix)) & 0xffffffffL;
+      return masked | ((long) v4Prefix << 32) | (1L << 40);
+    }
+    long hi = hi(raw);
+    long lo = lo(raw);
+    if (v6Prefix <= 64) {
+      hi = v6Prefix == 0 ? 0 : hi & (-1L << (64 - v6Prefix));
+      lo = 0;
+    } else if (v6Prefix < 128) {
+      lo = lo & (-1L << (128 - v6Prefix));
+    }
+    long h = hi * 0x9E3779B97F4A7C15L ^ Long.rotateLeft(lo * 0xC2B2AE3D27D4EB4FL, 31) ^ v6Prefix;
+    h ^= h >>> 29;
+    return h | (1L << 62);
+  }
+
+  /**
    * Packs an IPv4 address into the low 32 bits of a long.
    *
    * @param raw four bytes

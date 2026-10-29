@@ -108,6 +108,18 @@ public final class ConnectionManager {
       bootstrap.option(ChannelOption.TCP_FASTOPEN, 3);
     }
 
+    // ThirdVelocity: the kernel completes the TCP handshake but does not wake us until the
+    // client sends data, so idle connection floods cost nothing in user space.
+    final ru.moonlightproject.dev.thirdvelocity.proxy.protection.ConnectionFilter filter =
+        ru.moonlightproject.dev.thirdvelocity.proxy.ThirdVelocityCore.filterOrNull();
+    if (filter != null && filter.deferAcceptSeconds() > 0) {
+      if (this.transportType == TransportType.EPOLL) {
+        bootstrap.option(io.netty.channel.epoll.EpollChannelOption.TCP_DEFER_ACCEPT, filter.deferAcceptSeconds());
+      } else if (this.transportType == TransportType.IO_URING) {
+        bootstrap.option(io.netty.channel.uring.IoUringChannelOption.TCP_DEFER_ACCEPT, filter.deferAcceptSeconds());
+      }
+    }
+
     if (server.getConfiguration().isEnableReusePort()) {
       // We don't need a boss group, since each worker will bind to the socket
       bootstrap.option(UnixChannelOption.SO_REUSEPORT, true)

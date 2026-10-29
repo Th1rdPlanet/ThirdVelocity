@@ -28,9 +28,44 @@ rate-limit:
   max-concurrent-per-ip: 8
   # Превысивший лимит IP блокируется на время (иначе отклоняется только лишнее).
   temporary-block: true
-  temporary-block-duration: 5m
+  # Эскалация: первая блокировка — первый срок, повторная — следующий и т.д. (последний
+  # срок повторяется). Счётчик повторов сбрасывается, если IP не попадался escalation-reset.
+  temporary-block-durations: [5m, 1h, 1d]
+  escalation-reset: 1d
   # Пингов списка серверов с одного IP за окно.
   status-pings-per-window: 20
+
+# Отправка временных блокировок за флуд в файрвол ядра Linux (nftables), чтобы пакеты
+# такого IP отбрасывались до Java. Выключено по умолчанию. Команда выполняется напрямую,
+# без shell, раз в секунду одной пачкой: {v} — 4 или 6, {elements} — элементы через запятую,
+# каждый по шаблону element ({ip}, {seconds}). Нужны права: CAP_NET_ADMIN у процесса или
+# sudo-правило только на эту команду. Набор создаётся заранее, пример:
+#   nft add table inet thirdvelocity
+#   nft add set inet thirdvelocity flood4 '{ type ipv4_addr; flags timeout; }'
+#   nft add set inet thirdvelocity flood6 '{ type ipv6_addr; flags timeout; }'
+#   nft add chain inet thirdvelocity input '{ type filter hook input priority -10; }'
+#   nft add rule inet thirdvelocity input ip saddr @flood4 tcp dport 25565 drop
+#   nft add rule inet thirdvelocity input ip6 saddr @flood6 tcp dport 25565 drop
+firewall:
+  enabled: false
+  command: ["nft", "add", "element", "inet", "thirdvelocity", "flood{v}", "{ {elements} }"]
+  element: "{ip} timeout {seconds}s"
+  # Для /tv unblock: {ip}, {v}.
+  unblock-command: ["nft", "delete", "element", "inet", "thirdvelocity", "flood{v}", "{ {ip} }"]
+  max-elements-per-call: 500
+
+network:
+  # TCP_DEFER_ACCEPT: ядро ОС не будит прокси, пока клиент не прислал данные (секунды,
+  # 0 — выключено). Пустые подключения ботов перестают стоить ресурсов. Только Linux
+  # (epoll/io_uring), применяется при запуске.
+  defer-accept-seconds: 5
+
+# Кэш ответа на пинг списка серверов во время атаки: ProxyPingEvent и сборка ответа
+# выполняются раз в ttl, а не на каждый пинг.
+status-cache:
+  enabled: true
+  minimum-level: LOW
+  ttl-millis: 1500
 
 attack:
   # Уровень считается по числу подключений (принятых + отклонённых) за окно.

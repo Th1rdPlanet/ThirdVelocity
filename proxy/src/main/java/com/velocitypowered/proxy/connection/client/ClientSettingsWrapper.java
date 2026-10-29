@@ -41,6 +41,16 @@ public class ClientSettingsWrapper implements PlayerSettings {
     this.parts = new SkinParts((byte) settings.getSkinParts());
   }
 
+  /**
+   * Returns the locale exactly as the client sent it (ThirdVelocity uses the case as a client
+   * fingerprint signal: the vanilla client always sends lowercase).
+   *
+   * @return raw locale string
+   */
+  public String getRawLocale() {
+    return settings.getLocale();
+  }
+
   @Override
   public Locale getLocale() {
     if (locale == null) {

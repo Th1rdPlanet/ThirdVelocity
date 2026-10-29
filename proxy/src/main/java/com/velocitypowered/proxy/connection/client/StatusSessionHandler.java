@@ -29,6 +29,7 @@ import com.velocitypowered.proxy.protocol.packet.StatusRequestPacket;
 import com.velocitypowered.proxy.protocol.packet.StatusResponsePacket;
 import com.velocitypowered.proxy.util.except.QuietRuntimeException;
 import io.netty.buffer.ByteBuf;
+import java.net.InetSocketAddress;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -95,6 +96,21 @@ public class StatusSessionHandler implements MinecraftSessionHandler {
     }
     this.pingReceived = true;
 
+    // ThirdVelocity: during an attack answer ping floods from a short-lived cache.
+    final ru.moonlightproject.dev.thirdvelocity.proxy.protection.ConnectionFilter filter =
+        ru.moonlightproject.dev.thirdvelocity.proxy.ThirdVelocityCore.filterOrNull();
+    final ru.moonlightproject.dev.thirdvelocity.proxy.protection.StatusCache cache =
+        filter == null ? null : filter.activeStatusCache();
+    final int protocol = connection.getProtocolVersion().getProtocol();
+    final String host = inbound.getVirtualHost().map(InetSocketAddress::getHostString).orElse("");
+    if (cache != null) {
+      final String cached = cache.get(protocol, host);
+      if (cached != null) {
+        connection.write(new StatusResponsePacket(cached));
+        return true;
+      }
+    }
+
     this.server.getServerListPingHandler().getInitialPing(inbound)
         .thenCompose(ping -> server.getEventManager().fire(new ProxyPingEvent(inbound, ping)))
         .thenAcceptAsync(
@@ -103,6 +119,9 @@ public class StatusSessionHandler implements MinecraftSessionHandler {
                 final StringBuilder json = new StringBuilder();
                 VelocityServer.getPingGsonInstance(connection.getProtocolVersion())
                         .toJson(event.getPing(), json);
+                if (cache != null) {
+                  cache.put(protocol, host, json.toString());
+                }
                 connection.write(new StatusResponsePacket(json));
               } else {
                 connection.close();

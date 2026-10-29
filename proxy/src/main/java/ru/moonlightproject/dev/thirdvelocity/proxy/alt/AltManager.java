@@ -100,7 +100,14 @@ public final class AltManager implements AltService {
     }
   }
 
+  /** A login waiting to be written. */
+  private record PendingLogin(String nameLc, String ip, String name, String subnet, long asn, long at,
+      boolean authenticated, CompletableFuture<Void> done) {
+  }
+
   private final ThirdVelocityCore core;
+  private final java.util.concurrent.ConcurrentLinkedQueue<PendingLogin> pending =
+      new java.util.concurrent.ConcurrentLinkedQueue<>();
   private volatile Settings settings;
   private volatile Cache<InetAddress, Set<String>> recentNames = Caffeine.newBuilder().maximumSize(1).build();
 
@@ -318,30 +325,72 @@ public final class AltManager implements AltService {
 
   private CompletableFuture<Void> upsert(String name, InetAddress address, boolean authenticated) {
     Settings s = settings;
-    long now = System.currentTimeMillis();
-    String ip = IpKeys.text(address);
-    String subnet = IpKeys.subnet(address, s.v4Subnet(), s.v6Subnet());
-    long asn = core.geoIp().lookup(address).asn();
-    String sql = "INSERT INTO tv_seen (name_lc, ip, name, subnet, asn, first_seen, last_seen, logins,"
-        + " authenticated) VALUES (?,?,?,?,?,?,?,?,?)"
-        + core.database().upsert("name_lc, ip", "name = NEW(name), asn = NEW(asn), last_seen = NEW(last_seen),"
-        + (authenticated ? "" : " logins = tv_seen.logins + 1,")
-        + " authenticated = CASE WHEN NEW(authenticated) > tv_seen.authenticated THEN NEW(authenticated)"
-        + " ELSE tv_seen.authenticated END");
-    return core.database().call(c -> {
-      try (PreparedStatement ps = c.prepareStatement(sql)) {
-        ps.setString(1, name.toLowerCase(Locale.ROOT));
-        ps.setString(2, ip);
-        ps.setString(3, name);
-        ps.setString(4, subnet);
-        ps.setLong(5, asn);
-        ps.setLong(6, now);
-        ps.setLong(7, now);
-        ps.setLong(8, authenticated ? 0 : 1);
-        ps.setInt(9, authenticated ? 1 : 0);
-        ps.executeUpdate();
+    CompletableFuture<Void> done = new CompletableFuture<>();
+    pending.add(new PendingLogin(name.toLowerCase(Locale.ROOT), IpKeys.text(address), name,
+        IpKeys.subnet(address, s.v4Subnet(), s.v6Subnet()), core.geoIp().lookup(address).asn(),
+        System.currentTimeMillis(), authenticated, done));
+    return done;
+  }
+
+  /**
+   * Writes queued logins in one transaction; called every half second. A login burst becomes a
+   * single batch instead of one statement and commit per player.
+   */
+  public void flush() {
+    if (pending.isEmpty()) {
+      return;
+    }
+    List<PendingLogin> batch = new ArrayList<>();
+    PendingLogin item;
+    while ((item = pending.poll()) != null && batch.size() < 5000) {
+      batch.add(item);
+    }
+    String common = "INSERT INTO tv_seen (name_lc, ip, name, subnet, asn, first_seen, last_seen, logins,"
+        + " authenticated) VALUES (?,?,?,?,?,?,?,?,?)";
+    String update = "name = NEW(name), asn = NEW(asn), last_seen = NEW(last_seen),";
+    String auth = " authenticated = CASE WHEN NEW(authenticated) > tv_seen.authenticated THEN NEW(authenticated)"
+        + " ELSE tv_seen.authenticated END";
+    String loginSql = common + core.database().upsert("name_lc, ip", update + " logins = tv_seen.logins + 1," + auth);
+    String authSql = common + core.database().upsert("name_lc, ip", update + auth);
+    core.database().call(c -> {
+      boolean autoCommit = c.getAutoCommit();
+      c.setAutoCommit(false);
+      try (PreparedStatement logins = c.prepareStatement(loginSql);
+          PreparedStatement confirmations = c.prepareStatement(authSql)) {
+        for (PendingLogin p : batch) {
+          PreparedStatement ps = p.authenticated() ? confirmations : logins;
+          ps.setString(1, p.nameLc());
+          ps.setString(2, p.ip());
+          ps.setString(3, p.name());
+          ps.setString(4, p.subnet());
+          ps.setLong(5, p.asn());
+          ps.setLong(6, p.at());
+          ps.setLong(7, p.at());
+          ps.setLong(8, p.authenticated() ? 0 : 1);
+          ps.setInt(9, p.authenticated() ? 1 : 0);
+          ps.addBatch();
+        }
+        logins.executeBatch();
+        confirmations.executeBatch();
+        c.commit();
+      } catch (SQLException e) {
+        c.rollback();
+        throw e;
+      } finally {
+        c.setAutoCommit(autoCommit);
       }
       return null;
+    }).whenComplete((ignored, error) -> {
+      for (PendingLogin p : batch) {
+        if (error == null) {
+          p.done().complete(null);
+        } else {
+          p.done().completeExceptionally(error);
+        }
+      }
+      if (error != null) {
+        LOGGER.warn("Cannot store {} login records: {}", batch.size(), error.getMessage());
+      }
     });
   }
 
@@ -394,6 +443,37 @@ public final class AltManager implements AltService {
     });
   }
 
+  /** Loads rows whose column matches any of the values, grouped by that column. */
+  private static Map<String, List<Row>> rowsIn(Connection c, String column, java.util.Collection<String> values,
+      int limitPerChunk) throws SQLException {
+    Map<String, List<Row>> grouped = new HashMap<>();
+    List<String> list = new ArrayList<>(values);
+    for (int from = 0; from < list.size(); from += 500) {
+      List<String> chunk = list.subList(from, Math.min(list.size(), from + 500));
+      String marks = String.join(",", java.util.Collections.nCopies(chunk.size(), "?"));
+      try (PreparedStatement ps = c.prepareStatement("SELECT name_lc, name, ip, subnet, asn, last_seen, first_seen,"
+          + " logins, authenticated FROM tv_seen WHERE " + column + " IN (" + marks + ") ORDER BY last_seen DESC"
+          + " LIMIT " + limitPerChunk)) {
+        for (int i = 0; i < chunk.size(); i++) {
+          ps.setString(i + 1, chunk.get(i));
+        }
+        try (ResultSet rs = ps.executeQuery()) {
+          while (rs.next()) {
+            Row row = new Row(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getLong(5),
+                rs.getLong(6), rs.getLong(7), rs.getLong(8), rs.getInt(9) > 0);
+            String key = switch (column) {
+              case "ip" -> row.ip();
+              case "subnet" -> row.subnet();
+              default -> row.nameLc();
+            };
+            grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(row);
+          }
+        }
+      }
+    }
+    return grouped;
+  }
+
   private static List<Row> rows(Connection c, String where, String value, int limit) throws SQLException {
     List<Row> rows = new ArrayList<>();
     try (PreparedStatement ps = c.prepareStatement("SELECT name_lc, name, ip, subnet, asn, last_seen, first_seen,"
@@ -438,15 +518,29 @@ public final class AltManager implements AltService {
       for (int depth = 1; depth <= s.maxDepth() && !frontier.isEmpty(); depth++) {
         Map<String, Double> next = new LinkedHashMap<>();
         double scale = depth == 1 ? 1.0 : Math.pow(s.transitiveFactor(), depth - 1);
+        // One query per graph level instead of one per address.
+        Map<String, List<Row>> rowsByName = depth == 1 ? Map.of(subject, own)
+            : rowsIn(c, "name_lc", frontier.keySet(), 20_000);
+        Set<String> levelIps = new HashSet<>();
+        Set<String> levelSubnets = new HashSet<>();
+        for (List<Row> list : rowsByName.values()) {
+          for (Row row : list) {
+            levelIps.add(row.ip());
+            levelSubnets.add(row.subnet());
+          }
+        }
+        Map<String, List<Row>> byIp = rowsIn(c, "ip", levelIps, 50_000);
+        Map<String, List<Row>> bySubnet = depth == 1 && s.sameSubnet() > 0
+            ? rowsIn(c, "subnet", levelSubnets, 50_000) : Map.of();
         for (Map.Entry<String, Double> source : frontier.entrySet()) {
-          List<Row> sourceRows = source.getKey().equals(subject) ? own : rows(c, "name_lc", source.getKey(), 100);
+          List<Row> sourceRows = rowsByName.getOrDefault(source.getKey(), List.of());
           double parent = source.getValue() * scale;
           Map<String, Evidence> local = new HashMap<>();
           Set<String> seenIps = new HashSet<>();
           Set<String> seenSubnets = new HashSet<>();
           for (Row row : sourceRows) {
             if (seenIps.add(row.ip())) {
-              List<Row> others = rows(c, "ip", row.ip(), 500);
+              List<Row> others = byIp.getOrDefault(row.ip(), List.of());
               int sharers = (int) others.stream().map(Row::nameLc).distinct().count();
               double damp = sharers > s.sharedThreshold() ? (double) s.sharedThreshold() / sharers : 1.0;
               double anon = anonymizer(row.ip()) ? s.anonymizerFactor() : 1.0;
@@ -462,7 +556,7 @@ public final class AltManager implements AltService {
               }
             }
             if (depth == 1 && s.sameSubnet() > 0 && seenSubnets.add(row.subnet())) {
-              List<Row> others = rows(c, "subnet", row.subnet(), 500);
+              List<Row> others = bySubnet.getOrDefault(row.subnet(), List.of());
               int sharers = (int) others.stream().map(Row::nameLc).distinct().count();
               double damp = sharers > s.sharedThreshold() * 4 ? (double) s.sharedThreshold() * 4 / sharers : 1.0;
               for (Row other : others) {
@@ -571,9 +665,13 @@ public final class AltManager implements AltService {
       List<Row> rows = rows(c, "ip", ip, 500);
       List<Observation> accounts = new ArrayList<>();
       Map<String, Integer> related = new HashMap<>();
+      Set<String> names = new HashSet<>();
       for (Row row : rows) {
         accounts.add(observation(row));
-        for (Row other : rows(c, "name_lc", row.nameLc(), 100)) {
+        names.add(row.nameLc());
+      }
+      for (List<Row> list : rowsIn(c, "name_lc", names, 50_000).values()) {
+        for (Row other : list) {
           if (!other.ip().equals(ip)) {
             related.merge(other.ip(), 1, Integer::sum);
           }

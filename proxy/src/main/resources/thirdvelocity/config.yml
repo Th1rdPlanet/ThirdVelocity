@@ -37,6 +37,12 @@ bans:
     on-ban: ["nft", "add", "element", "inet", "thirdvelocity", "banned{v}", "{ {ip} }"]
     on-unban: ["nft", "delete", "element", "inet", "thirdvelocity", "banned{v}", "{ {ip} }"]
 
+# Метрики Prometheus на http://<bind>/metrics: подключения, отказы по причинам, уровень
+# атаки, баны, трафик, состояние GeoIP и списков. Открывайте только для Prometheus.
+metrics:
+  enabled: false
+  bind: "127.0.0.1:9465"
+
 commands:
   # Встроенная команда /tv. Её можно выключить целиком, если баны и проверки делает
   # ваш плагин через Java API.

@@ -61,3 +61,8 @@ events:
     login.too-many-names: 20
     handshake.bad-host: 10
     client.kicked: 20
+    auth.rate-limited: 20
+    client.no-brand: 15
+    client.no-settings: 15
+    client.odd-locale: 10
+    client.odd-view-distance: 5

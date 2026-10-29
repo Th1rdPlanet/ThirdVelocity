@@ -114,6 +114,7 @@ public final class ClientTracker implements ClientService {
     boolean settingsReceived;
     List<Detection> detections = List.of();
     final Set<String> actedRules = new LinkedHashSet<>();
+    final Set<String> behaviour = new LinkedHashSet<>();
     @Nullable ScheduledFuture<?> pending;
     @Nullable String storedFingerprint;
     volatile @Nullable ClientInfo snapshot;
@@ -128,6 +129,10 @@ public final class ClientTracker implements ClientService {
   private volatile List<Rule> rules = List.of();
   private volatile Set<String> ignoredNamespaces = Set.of();
   private volatile boolean logDetections;
+  private volatile boolean behaviourEnabled;
+  private volatile long behaviourDelayMillis = 10_000;
+  private volatile Map<String, String> behaviourActions = Map.of();
+  private static final Pattern VANILLA_LOCALE = Pattern.compile("^[a-z]{2,3}_[a-z0-9]{2,4}$");
 
   /**
    * Creates the tracker.
@@ -177,6 +182,74 @@ public final class ClientTracker implements ClientService {
       parsed.add(rule);
     }
     rules = List.copyOf(parsed);
+    ConfigNode behaviour = config.section("behaviour");
+    behaviourEnabled = behaviour.bool("enabled", true);
+    behaviourDelayMillis = behaviour.duration("check-after", java.time.Duration.ofSeconds(10)).toMillis();
+    Map<String, String> actions = new java.util.HashMap<>();
+    ConfigNode signals = behaviour.section("signals");
+    for (String signal : List.of("no-brand", "no-settings", "odd-locale", "odd-view-distance")) {
+      ConfigNode node = signals.section(signal);
+      if (!node.bool("enabled", true)) {
+        continue;
+      }
+      String action = node.string("action", "none").toLowerCase(Locale.ROOT);
+      if (!List.of("none", "flag", "kick").contains(action)) {
+        throw new ConfigNode.ConfigException("clients.yml: behaviour.signals." + signal + ".action must be none, flag or kick");
+      }
+      actions.put(signal, action);
+    }
+    behaviourActions = Map.copyOf(actions);
+  }
+
+  private static final Map<String, String> BEHAVIOUR_LABELS = Map.of(
+      "no-brand", "Не прислал brand",
+      "no-settings", "Не прислал настройки клиента",
+      "odd-locale", "Нестандартный формат языка",
+      "odd-view-distance", "Невозможная дальность прорисовки");
+
+  /** Records a behaviour signal once per session and applies its action. */
+  private void behaviourSignal(Session s, Player player, String signal) {
+    String action = behaviourActions.get(signal);
+    if (action == null) {
+      return;
+    }
+    synchronized (s) {
+      if (!s.behaviour.add(signal)) {
+        return;
+      }
+    }
+    java.net.InetAddress address = ru.moonlightproject.dev.thirdvelocity.proxy.util.IpKeys.of(player.getRemoteAddress());
+    if (address != null) {
+      core.reputation().report(address, "client." + signal);
+    }
+    if (logDetections) {
+      LOGGER.info("{}: behaviour signal {}", s.name, signal);
+    }
+    if (action.equals("flag")) {
+      flaggedNames.put(s.name.toLowerCase(Locale.ROOT), Boolean.TRUE);
+    } else if (action.equals("kick")) {
+      player.disconnect(core.messages().render("client-kick", "rule", BEHAVIOUR_LABELS.get(signal)));
+      return;
+    }
+    update(s, player);
+  }
+
+  private void checkBehaviour(Session s, Player player) {
+    if (!behaviourEnabled || !sessions.containsKey(s.playerId) || !player.isActive()) {
+      return;
+    }
+    boolean noBrand;
+    boolean noSettings;
+    synchronized (s) {
+      noBrand = s.brand == null;
+      noSettings = !s.settingsReceived;
+    }
+    if (noBrand) {
+      behaviourSignal(s, player, "no-brand");
+    }
+    if (noSettings) {
+      behaviourSignal(s, player, "no-settings");
+    }
   }
 
   private static @Nullable Pattern pattern(ConfigNode node, String key, String id) {
@@ -237,6 +310,9 @@ public final class ClientTracker implements ClientService {
       addMods(s, player.getModInfo().get());
     }
     sessions.put(s.playerId, s);
+    if (behaviourEnabled) {
+      core.scheduler().schedule(() -> checkBehaviour(s, player), behaviourDelayMillis, TimeUnit.MILLISECONDS);
+    }
     update(s, player);
   }
 
@@ -341,8 +417,16 @@ public final class ClientTracker implements ClientService {
     if (s == null) {
       return;
     }
+    String rawLocale = settings instanceof com.velocitypowered.proxy.connection.client.ClientSettingsWrapper wrapper
+        ? wrapper.getRawLocale() : settings.getLocale().toString().toLowerCase(Locale.ROOT);
+    if (behaviourEnabled && !VANILLA_LOCALE.matcher(rawLocale).matches()) {
+      behaviourSignal(s, player, "odd-locale");
+    }
+    if (behaviourEnabled && (settings.getViewDistance() < 2 || settings.getViewDistance() > 32)) {
+      behaviourSignal(s, player, "odd-view-distance");
+    }
     synchronized (s) {
-      s.locale = settings.getLocale().toString().toLowerCase(Locale.ROOT);
+      s.locale = rawLocale.toLowerCase(Locale.ROOT);
       s.viewDistance = settings.getViewDistance();
       s.skinParts = mask(settings.getSkinParts());
       s.mainHandRight = settings.getMainHand() == PlayerSettings.MainHand.RIGHT;
@@ -417,6 +501,10 @@ public final class ClientTracker implements ClientService {
             }
           }
         }
+      }
+      for (String signal : s.behaviour) {
+        detections.add(new Detection("behaviour:" + signal, "behaviour", BEHAVIOUR_LABELS.get(signal),
+            behaviourActions.getOrDefault(signal, "none")));
       }
       boolean changed = !detections.equals(s.detections);
       s.detections = List.copyOf(detections);

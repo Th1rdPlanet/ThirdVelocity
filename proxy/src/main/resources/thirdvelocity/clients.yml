@@ -20,6 +20,23 @@ ignored-namespaces:
   - quilt
   - qsl
 
+# Поведенческие сигналы — мягкие признаки ботов (mineflayer и подобных). Каждый сигнал
+# один раз за сессию добавляет очки репутации IP (reputation.yml → events, client.<сигнал>)
+# и выполняет action: none, flag (подозрительный — Selene покажет CAPTCHA при следующем
+# входе), kick.
+#   no-brand — клиент не прислал minecraft:brand за check-after (ванильный присылает всегда);
+#   no-settings — не прислал настройки клиента за check-after;
+#   odd-locale — язык не в формате ванильного клиента (у него всегда нижний регистр: en_us);
+#   odd-view-distance — дальность прорисовки вне 2..32.
+behaviour:
+  enabled: true
+  check-after: 10s
+  signals:
+    no-brand: { enabled: true, action: flag }
+    no-settings: { enabled: true, action: flag }
+    odd-locale: { enabled: true, action: none }
+    odd-view-distance: { enabled: true, action: none }
+
 # Правила. Каждое присутствующее условие должно совпасть:
 #   brand / channel / mod / host — регулярные выражения (brand клиента, любой канал,
 #   любой мод, сырой адрес handshake с маркерами Forge);

@@ -53,6 +53,13 @@ import ru.moonlightproject.dev.thirdvelocity.proxy.protection.ConnectionFilter;
 @SuppressWarnings("WeakerAccess")
 public class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
+  private static final io.netty.channel.ChannelHandler PLACEHOLDER = new Placeholder();
+
+  /** Handler that does nothing; stands in for the real ones on refused channels. */
+  @io.netty.channel.ChannelHandler.Sharable
+  private static final class Placeholder extends io.netty.channel.ChannelDuplexHandler {
+  }
+
   private final VelocityServer server;
 
   public ServerChannelInitializer(final VelocityServer server) {
@@ -65,6 +72,12 @@ public class ServerChannelInitializer extends ChannelInitializer<Channel> {
     final ConnectionFilter filter = ThirdVelocityCore.filterOrNull();
     final boolean proxyProtocol = this.server.getConfiguration().isProxyProtocol();
     if (filter != null && !filter.initChannel(ch, proxyProtocol)) {
+      // The channel is already closed. Plugins such as ViaVersion wrap this initializer and insert
+      // their handlers next to ours by name, so leave no-op placeholders with the same names.
+      for (String name : new String[] {LEGACY_PING_DECODER, FRAME_DECODER, READ_TIMEOUT, LEGACY_PING_ENCODER,
+          FRAME_ENCODER, MINECRAFT_DECODER, MINECRAFT_ENCODER, Connections.HANDLER}) {
+        ch.pipeline().addLast(name, PLACEHOLDER);
+      }
       return;
     }
     ch.pipeline()
