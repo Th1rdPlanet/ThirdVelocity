@@ -158,6 +158,16 @@ public final class ProtectionManager implements ProtectionService {
   private volatile AttackLevel level = AttackLevel.NORMAL;
   private volatile TrafficSnapshot snapshot = new TrafficSnapshot(0, 0, 0, 0, 0, 0, 0, 0);
   private final long[] history = new long[600];
+  private final long[] authAttempts = new long[600];
+  private final long[] authFailures = new long[600];
+  private final LongAdder authAttemptsNow = new LongAdder();
+  private final LongAdder authFailuresNow = new LongAdder();
+  private final Map<String, long[]> pendingLogins = new ConcurrentHashMap<>();
+  private volatile int failureMinimumSamples = 20;
+  private volatile int failureLowPercent = 50;
+  private volatile int failureMediumPercent = 75;
+  private volatile int pendingMedium = 100;
+  private volatile int pendingStrong = 500;
   private int historyIndex;
   private long calmSince = System.currentTimeMillis();
 
@@ -237,6 +247,12 @@ public final class ProtectionManager implements ProtectionService {
     windowSeconds = attack.integer("window-seconds", 10, 1, 600);
     recoverySeconds = attack.integer("recovery-seconds", 30, 1, 3600);
     minimumLevel = attack.enumValue("minimum-level", AttackLevel.NORMAL);
+    ConfigNode signals = attack.section("signals");
+    failureMinimumSamples = signals.integer("failure-minimum-samples", 20, 1, 1_000_000);
+    failureLowPercent = signals.integer("failure-ratio-low-percent", 50, 1, 100);
+    failureMediumPercent = signals.integer("failure-ratio-medium-percent", 75, failureLowPercent, 100);
+    pendingMedium = signals.integer("pending-logins-medium", 100, 1, 10_000_000);
+    pendingStrong = signals.integer("pending-logins-strong", 500, pendingMedium, 10_000_000);
     lowThreshold = low;
     mediumThreshold = medium;
     strongThreshold = strong;
@@ -498,15 +514,25 @@ public final class ProtectionManager implements ProtectionService {
     packetsTotal.addAndGet(packets);
     snapshot = new TrafficSnapshot(conn, block, hs, ping, in, out, packets, traffic.open.sum());
     long sum;
+    long attempts;
+    long failures;
     synchronized (history) {
       history[historyIndex] = conn + block;
+      authAttempts[historyIndex] = authAttemptsNow.sumThenReset();
+      authFailures[historyIndex] = authFailuresNow.sumThenReset();
       historyIndex = (historyIndex + 1) % history.length;
       sum = 0;
+      attempts = 0;
+      failures = 0;
       for (int i = 1; i <= windowSeconds; i++) {
-        sum += history[(historyIndex - i + history.length) % history.length];
+        int index = (historyIndex - i + history.length) % history.length;
+        sum += history[index];
+        attempts += authAttempts[index];
+        failures += authFailures[index];
       }
     }
     AttackLevel measured = AttackLevel.NORMAL;
+    String reason = sum + " connections in " + windowSeconds + "s";
     if (sum >= strongThreshold) {
       measured = AttackLevel.STRONG;
     } else if (sum >= mediumThreshold) {
@@ -514,12 +540,34 @@ public final class ProtectionManager implements ProtectionService {
     } else if (sum >= lowThreshold) {
       measured = AttackLevel.LOW;
     }
+    // Signals from authentication plugins (Selene): failure ratio and unfinished logins.
+    if (attempts >= failureMinimumSamples) {
+      long percent = failures * 100 / attempts;
+      AttackLevel byFailures = percent >= failureMediumPercent ? AttackLevel.MEDIUM
+          : percent >= failureLowPercent ? AttackLevel.LOW : AttackLevel.NORMAL;
+      if (byFailures.compareTo(measured) > 0) {
+        measured = byFailures;
+        reason = percent + "% failed logins (" + failures + "/" + attempts + ")";
+      }
+    }
+    long now0 = System.currentTimeMillis();
+    pendingLogins.values().removeIf(entry -> now0 - entry[1] > 10_000);
+    long pending = 0;
+    for (long[] entry : pendingLogins.values()) {
+      pending += entry[0];
+    }
+    AttackLevel byPending = pending >= pendingStrong ? AttackLevel.STRONG
+        : pending >= pendingMedium ? AttackLevel.MEDIUM : AttackLevel.NORMAL;
+    if (byPending.compareTo(measured) > 0) {
+      measured = byPending;
+      reason = pending + " unfinished logins";
+    }
     if (measured.compareTo(minimumLevel) < 0) {
       measured = minimumLevel;
     }
     long now = System.currentTimeMillis();
     if (measured.compareTo(level) > 0) {
-      setLevel(measured, sum + " connections in " + windowSeconds + "s");
+      setLevel(measured, reason);
       calmSince = now;
     } else if (measured.compareTo(level) < 0) {
       if (now - calmSince >= recoverySeconds * 1000L) {
@@ -544,6 +592,19 @@ public final class ProtectionManager implements ProtectionService {
       LOGGER.info("Attack level {} -> {} ({})", previous, next, reason);
     }
     core.fire(new AttackLevelChangedEvent(previous, next, reason));
+  }
+
+  @Override
+  public void reportAuthentication(boolean failed) {
+    authAttemptsNow.increment();
+    if (failed) {
+      authFailuresNow.increment();
+    }
+  }
+
+  @Override
+  public void reportPendingLogins(String source, int pending) {
+    pendingLogins.put(source, new long[] {Math.max(0, pending), System.currentTimeMillis()});
   }
 
   @Override

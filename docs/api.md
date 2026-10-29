@@ -6,10 +6,10 @@
 
 ```kotlin
 repositories { maven("https://jitpack.io") }
-dependencies { compileOnly("com.github.Th1rdPlanet.ThirdVelocity:thirdvelocity-api:v1.1.0") }
+dependencies { compileOnly("com.github.Th1rdPlanet.ThirdVelocity:thirdvelocity-api:v1.2.0") }
 ```
 
-Локально: `./gradlew :thirdvelocity-api:publishToMavenLocal` → `ru.moonlightproject:thirdvelocity-api:1.1.0`.
+Локально: `./gradlew :thirdvelocity-api:publishToMavenLocal` → `ru.moonlightproject:thirdvelocity-api:1.2.0`.
 
 ## Точка входа
 
@@ -150,6 +150,8 @@ tv.clients().online();
 tv.protection().level();                         // AttackLevel NORMAL/LOW/MEDIUM/STRONG
 tv.protection().traffic();                       // TrafficSnapshot за последнюю секунду
 tv.protection().totals();                        // ProtectionTotals: накопительные счётчики (для Prometheus)
+tv.protection().reportAuthentication(failed);    // плагин авторизации сообщает исход шага входа
+tv.protection().reportPendingLogins("myauth", n); // число незавершённых входов, раз в секунду
 tv.protection().suspicious("Player", address);   // репутация + правила клиентов + политика уровня
 tv.protection().known(address);                  // адрес уже встречался
 tv.protection().temporaryBlocks();
@@ -200,3 +202,10 @@ public final class MyBans {
   }
 }
 ```
+
+## Уровень атаки — один на сеть
+
+Уровень атаки определяет только ядро. Плагины не считают его сами, а сообщают сигналы:
+`reportAuthentication` и `reportPendingLogins`. Ядро учитывает их вместе с частотой
+подключений, пороги задаются в `protection.yml → attack`. Плагин читает итог через
+`protection().level()` и событие `AttackLevelChangedEvent`.

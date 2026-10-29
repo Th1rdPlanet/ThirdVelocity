@@ -78,6 +78,18 @@ attack:
     low: 150
     medium: 400
     strong: 1000
+  # Сигналы плагина авторизации (Selene сообщает их через API). Уровень атаки во всей сети
+  # определяет только ядро: собственная автоматика Selene при работе с ThirdVelocity
+  # отключается, а её пороги задаются здесь.
+  #   failure-ratio-* — доля неудачных входов (пароль, CAPTCHA, 2FA) за window-seconds, когда
+  #   попыток не меньше failure-minimum-samples: LOW и MEDIUM;
+  #   pending-logins-* — сколько игроков одновременно подключены, но ещё не вошли: MEDIUM и STRONG.
+  signals:
+    failure-minimum-samples: 20
+    failure-ratio-low-percent: 50
+    failure-ratio-medium-percent: 75
+    pending-logins-medium: 100
+    pending-logins-strong: 500
   # Политика каждого уровня:
   # connections-per-ip / connections-per-subnet — подключений за окно rate-limit;
   # unknown-addresses — что делать с IP, которых раньше не было: ALLOW, FLAG (отметить

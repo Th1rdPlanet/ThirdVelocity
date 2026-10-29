@@ -48,6 +48,27 @@ public interface ProtectionService {
   ProtectionTotals totals();
 
   /**
+   * Reports the outcome of an authentication step (password, CAPTCHA, 2FA) from an authentication
+   * plugin. The core is the single owner of the network attack level: the failure ratio over the
+   * attack window raises the level by {@code protection.yml → attack.signals}. Fast.
+   *
+   * @param failed whether the step failed
+   * @since 1.2.0
+   */
+  void reportAuthentication(boolean failed);
+
+  /**
+   * Reports how many logins an authentication plugin currently has in progress (connected but
+   * not authenticated). Many unfinished logins also raise the attack level. Fast; call it about
+   * once per second.
+   *
+   * @param source plugin id, so several plugins can report independently
+   * @param pending logins in progress
+   * @since 1.2.0
+   */
+  void reportPendingLogins(String source, int pending);
+
+  /**
    * Combined suspicion check used by authentication plugins: IP verdict, name/IP behaviour and
    * client detections. Fast.
    *
