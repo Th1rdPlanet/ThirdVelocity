@@ -202,7 +202,7 @@ public final class ConnectionFilter {
     core.protectionManager().countBlocked();
     count(reason);
     if (blockLog == BlockLog.EACH) {
-      LOGGER.info("[-] drop     » {} at {}: {} {}", address == null ? "?" : address.getHostAddress(),
+      LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[-] drop     » {} at {}: {} {}"), address == null ? "?" : address.getHostAddress(),
           stage, reason, detail);
     }
     if (resetOnDrop) {
@@ -236,7 +236,7 @@ public final class ConnectionFilter {
     if (!counts.isEmpty()) {
       StringBuilder line = new StringBuilder();
       counts.forEach((reason, value) -> line.append(line.isEmpty() ? "" : "  ").append(reason).append(' ').append(value));
-      LOGGER.info("[-] drop     » 30s: {}", line);
+      LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[-] drop     » 30s: {}"), line);
     }
   }
 

@@ -267,7 +267,7 @@ public final class Database implements AutoCloseable {
     executor.shutdown();
     try {
       if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-        LOGGER.warn("[x] db       » worker shutdown timed out");
+        LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] db       » worker shutdown timed out"));
         executor.shutdownNow();
       }
     } catch (InterruptedException e) {

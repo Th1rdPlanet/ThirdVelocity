@@ -246,7 +246,7 @@ public final class ReputationManager implements ReputationService {
           signals.add(new Signal(provider.getKey() + ":" + signal.id(), signal.points(), signal.detail()));
         }
       } catch (RuntimeException e) {
-        LOGGER.warn("[x] score    » rule {} crashed: {}", provider.getKey(), e.toString());
+        LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] score    » rule {} crashed: {}"), provider.getKey(), e.toString());
       }
     }
     return finish(address, signals, geo, tags, s);

@@ -122,7 +122,7 @@ public final class GeoIpManager implements GeoIpService {
           swap(state, open(source.file()));
         } catch (IOException e) {
           state.lastError = "Cannot open " + source.file() + ": " + e.getMessage();
-          LOGGER.warn("[x] geoip    » {}", state.lastError);
+          LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] geoip    » {}"), state.lastError);
         }
       }
     }
@@ -194,7 +194,7 @@ public final class GeoIpManager implements GeoIpService {
     String auth = source.maxmindAuth() ? basicAuth : null;
     if (source.maxmindAuth() && auth == null) {
       state.lastError = "maxmind-account-id and maxmind-license-key are not set";
-      LOGGER.warn("[!] geoip    » {}: {}", source.name(), state.lastError);
+      LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[!] geoip    » {}: {}"), source.name(), state.lastError);
       return;
     }
     Path temp = source.file().resolveSibling(source.file().getFileName() + ".new");
@@ -219,11 +219,11 @@ public final class GeoIpManager implements GeoIpService {
       Files.move(temp, source.file(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
           java.nio.file.StandardCopyOption.ATOMIC_MOVE);
       swap(state, open(source.file()));
-      LOGGER.info("[+] geoip    » {} updated from {}  build:{}", source.name(),
+      LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[+] geoip    » {} updated from {}  build:{}"), source.name(),
           Downloader.redact(url), state.buildTime);
     } catch (Exception e) {
       state.lastError = e.getMessage();
-      LOGGER.warn("[x] geoip    » update failed for {}: {}", source.name(), e.getMessage());
+      LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] geoip    » update failed for {}: {}"), source.name(), e.getMessage());
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }

@@ -49,7 +49,6 @@ import ru.moonlightproject.dev.thirdvelocity.api.event.BanRevokedEvent;
 import ru.moonlightproject.dev.thirdvelocity.api.geo.GeoInfo;
 import ru.moonlightproject.dev.thirdvelocity.proxy.ThirdVelocityCore;
 import ru.moonlightproject.dev.thirdvelocity.proxy.util.ConfigNode;
-import ru.moonlightproject.dev.thirdvelocity.proxy.util.Durations;
 import ru.moonlightproject.dev.thirdvelocity.proxy.util.IpKeys;
 import ru.moonlightproject.dev.thirdvelocity.proxy.util.PrefixIndex;
 
@@ -131,7 +130,7 @@ public final class BanManager implements BanService {
       loaded.forEach(ban -> active.put(ban.id(), ban));
       lastSync = started;
       rebuild();
-      LOGGER.info("[*] bans     » active:{}", loaded.size());
+      LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[*] bans     » active:{}"), loaded.size());
     });
   }
 
@@ -165,7 +164,7 @@ public final class BanManager implements BanService {
           if (known == null) {
             active.put(ban.id(), ban);
             dirty = true;
-            LOGGER.info("[+] ban      » #{} imported from shared DB » {} {} ({})", ban.id(), ban.target().kind(),
+            LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[+] ban      » #{} imported from shared DB » {} {} ({})"), ban.id(), ban.target().kind(),
                 ban.target().value(), ban.actor());
             core.fire(new BanCreatedEvent(ban, true));
             applySideEffects(ban, true);
@@ -183,7 +182,7 @@ public final class BanManager implements BanService {
         rebuild();
       }
     }).exceptionally(error -> {
-      LOGGER.warn("[x] bans     » sync failed: {}", rootMessage(error));
+      LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] bans     » sync failed: {}"), rootMessage(error));
       return null;
     });
   }
@@ -227,7 +226,7 @@ public final class BanManager implements BanService {
       return new Ban(rs.getLong("id"), target, rs.getString("reason"), rs.getString("actor"),
           Instant.ofEpochMilli(rs.getLong("created_at")), expiresAt, revokedAt, rs.getString("revoked_by"));
     } catch (IllegalArgumentException e) {
-      LOGGER.warn("[x] bans     » corrupt entry skipped #{}: {}", rs.getLong("id"), e.getMessage());
+      LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] bans     » corrupt entry skipped #{}: {}"), rs.getLong("id"), e.getMessage());
       return null;
     }
   }
@@ -271,9 +270,9 @@ public final class BanManager implements BanService {
           expires == null ? null : Instant.ofEpochMilli(expires), null, null);
       active.put(id, ban);
       rebuild();
-      LOGGER.info("[+] ban      » {} » {} {} ({}){}", actor, ban.target().kind(),
+      LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[+] ban      » {} » {} {} ({}){}"), actor, ban.target().kind(),
           ban.target().value(), reason.isEmpty() ? "-" : reason,
-          expires == null ? "" : " на " + Durations.format(request.duration()));
+          expires == null ? "" : "  duration:" + request.duration().toString().substring(2).toLowerCase(java.util.Locale.ROOT));
       core.fire(new BanCreatedEvent(ban, false));
       applySideEffects(ban, false);
       return ban;
@@ -320,10 +319,10 @@ public final class BanManager implements BanService {
         String output = new String(process.getInputStream().readAllBytes()).trim();
         int code = process.waitFor();
         if (code != 0) {
-          LOGGER.warn("[x] firewall » {} exit:{}  output:{}", command, code, output);
+          LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] firewall » {} exit:{}  output:{}"), command, code, output);
         }
       } catch (Exception e) {
-        LOGGER.warn("[x] firewall » {} launch failed: {}", command, e.getMessage());
+        LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] firewall » {} launch failed: {}"), command, e.getMessage());
       }
     });
   }
@@ -343,7 +342,7 @@ public final class BanManager implements BanService {
       }
       Ban revoked = new Ban(old.id(), old.target(), old.reason(), old.actor(), old.createdAt(),
           old.expiresAt(), Instant.ofEpochMilli(now), by);
-      LOGGER.info("[-] unban    » {} removed #{} ({} {})", by, id, old.target().kind(), old.target().value());
+      LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[-] unban    » {} removed #{} ({} {})"), by, id, old.target().kind(), old.target().value());
       core.fire(new BanRevokedEvent(revoked, false));
       runFirewall(firewallUnban, revoked);
       return Optional.of(revoked);

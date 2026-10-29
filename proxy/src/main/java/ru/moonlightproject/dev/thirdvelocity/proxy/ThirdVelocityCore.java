@@ -168,7 +168,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     try {
       core.loadConfigs();
       if (!core.mainConfig.bool("enabled", true)) {
-        LOGGER.warn("[-] core     » disabled via thirdvelocity/config.yml");
+        LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[-] core     » disabled via thirdvelocity/config.yml"));
         core.scheduler.shutdownNow();
         core.worker.shutdownNow();
         return;
@@ -189,7 +189,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     core.registerListeners();
     core.schedule();
     ThirdVelocityCommand.register(core);
-    LOGGER.info("[+] ready    » ThirdVelocity {}  storage:{}  bans:{}  shield:{}", VERSION,
+    LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[+] ready    » ThirdVelocity {}  storage:{}  bans:{}  shield:{}"), VERSION,
         core.database.dialect(), core.bans.active().size(), core.protection.level());
   }
 
@@ -248,7 +248,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     }
     java.nio.file.Files.move(legacy, directory.resolve("intel.yml.old"),
         java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-    LOGGER.warn("[~] config   » intel.yml split into geoip.yml + ip-lists.yml  backup:intel.yml.old");
+    LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[~] config   » intel.yml split into geoip.yml + ip-lists.yml  backup:intel.yml.old"));
   }
 
   /**
@@ -260,7 +260,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     loadConfigs();
     geoIp.updateIfStale();
     ipLists.updateIfStale();
-    LOGGER.info("[+] config   » reloaded");
+    LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[+] config   » reloaded"));
   }
 
   private void schedule() {
@@ -284,7 +284,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
       try {
         task.run();
       } catch (RuntimeException e) {
-        LOGGER.warn("[x] task     » background task crashed", e);
+        LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] task     » background task crashed"), e);
       }
     };
   }
@@ -335,7 +335,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
         .thenCompose(ignored -> alts.alts(player.getUsername()))
         .thenAccept(report -> onAltReport(player, report))
         .exceptionally(error -> {
-          LOGGER.warn("[x] alts     » scan failed for {}: {}", player.getUsername(), error.getMessage());
+          LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] alts     » scan failed for {}: {}"), player.getUsername(), error.getMessage());
           return null;
         });
   }

@@ -391,12 +391,12 @@ public final class ProtectionManager implements ProtectionService {
         String output = new String(process.getInputStream().readAllBytes()).trim();
         if (!process.waitFor(10, TimeUnit.SECONDS)) {
           process.destroyForcibly();
-          LOGGER.warn("[x] firewall » command {} timed out", command.get(0));
+          LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] firewall » command {} timed out"), command.get(0));
         } else if (process.exitValue() != 0) {
-          LOGGER.warn("[x] firewall » exit:{}  output:{}", process.exitValue(), output);
+          LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] firewall » exit:{}  output:{}"), process.exitValue(), output);
         }
       } catch (Exception e) {
-        LOGGER.warn("[x] firewall » launch failed: {}", e.getMessage());
+        LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[x] firewall » launch failed: {}"), e.getMessage());
       } finally {
         if (Thread.currentThread().isInterrupted()) {
           Thread.currentThread().interrupt();
@@ -587,9 +587,9 @@ public final class ProtectionManager implements ProtectionService {
     }
     level = next;
     if (next.compareTo(previous) > 0) {
-      LOGGER.warn("[!] shield   » {} ──▶ {}  ({})", previous, next, reason);
+      LOGGER.warn(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[!] shield   » {} ──▶ {}  ({})"), previous, next, reason);
     } else {
-      LOGGER.info("[!] shield   » {} ──▶ {}  ({})", previous, next, reason);
+      LOGGER.info(ru.moonlightproject.dev.thirdvelocity.proxy.util.Ansi.line("[!] shield   » {} ──▶ {}  ({})"), previous, next, reason);
     }
     core.fire(new AttackLevelChangedEvent(previous, next, reason));
   }
