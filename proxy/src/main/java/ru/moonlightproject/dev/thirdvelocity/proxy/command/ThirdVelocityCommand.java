@@ -81,9 +81,9 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     SUBCOMMANDS.put("unban", new Sub("unban <id> | unban [kind] <target>", "lift a ban"));
     SUBCOMMANDS.put("bans", new Sub("bans [page]", "active bans"));
     SUBCOMMANDS.put("baninfo", new Sub("baninfo <id>", "ban details"));
-    SUBCOMMANDS.put("check", new Sub("check <ip|player>", "IP check: GeoIP, lists, score"));
+    SUBCOMMANDS.put("check", new Sub("check <ip|player>", "IP check: GeoIP, lists, score (offline players: last address)"));
     SUBCOMMANDS.put("alts", new Sub("alts <name>", "alt and linked accounts"));
-    SUBCOMMANDS.put("ip", new Sub("ip <ip|player>", "accounts on an IP and related addresses"));
+    SUBCOMMANDS.put("ip", new Sub("ip <ip|player>", "accounts on an IP and related addresses (offline players: last address)"));
     SUBCOMMANDS.put("history", new Sub("history <name>", "address history of a player"));
     SUBCOMMANDS.put("client", new Sub("client <player>", "client, mods, launcher"));
     SUBCOMMANDS.put("geoip", new Sub("geoip [status|update]", "GeoIP databases"));
@@ -400,6 +400,42 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     }
   }
 
+  /**
+   * Like {@link #resolveAddress}, but a player who is offline resolves to the address of their
+   * most recent login from the history. Completes with {@code null} after reporting an error.
+   */
+  private CompletableFuture<@Nullable InetAddress> resolveKnownAddress(CommandSource source, String value) {
+    Optional<Player> online = core.server().getPlayer(value);
+    if (online.isPresent()) {
+      return CompletableFuture.completedFuture(IpKeys.of(online.get().getRemoteAddress()));
+    }
+    try {
+      return CompletableFuture.completedFuture(IpKeys.canonical(IpRange.parseLiteral(value)));
+    } catch (IllegalArgumentException notAnAddress) {
+      // Not an IP literal: try the name.
+    }
+    if (!value.matches("[A-Za-z0-9_]{1,16}")) {
+      error(source, "Expected an IP address or a player name: " + value);
+      return CompletableFuture.completedFuture(null);
+    }
+    return core.alts().history(value).thenApply(rows -> {
+      Optional<Observation> last = rows.stream().max(java.util.Comparator.comparing(Observation::lastSeen));
+      if (last.isEmpty()) {
+        error(source, "No known address for " + value + ".");
+        return null;
+      }
+      try {
+        InetAddress address = IpKeys.canonical(IpRange.parseLiteral(last.get().address()));
+        send(source, MARK + "<gray><name> is offline, using the last address</gray> <white><ip></white>"
+            + " <dark_gray>(<seen>)", "name", value, "ip", last.get().address(), "seen", TIME.format(last.get().lastSeen()));
+        return address;
+      } catch (IllegalArgumentException corrupt) {
+        error(source, "The stored address of " + value + " is invalid.");
+        return null;
+      }
+    });
+  }
+
   private static String geoLine(GeoInfo geo) {
     if (geo.isUnknown()) {
       return "no data";
@@ -428,10 +464,11 @@ public final class ThirdVelocityCommand implements SimpleCommand {
       usage(source, "check");
       return done();
     }
-    InetAddress address = resolveAddress(source, args[0]);
-    if (address == null) {
-      return done();
-    }
+    return resolveKnownAddress(source, args[0]).thenCompose(address -> address == null ? done()
+        : checkAddress(source, address).thenAccept(ignored -> { }));
+  }
+
+  private CompletableFuture<?> checkAddress(CommandSource source, InetAddress address) {
     return core.reputation().scan(address).thenCombine(core.altManager().address(address), (assessment, report) -> {
       sendAssessment(source, assessment);
       Optional<Ban> ban = core.bans().matchAddress(address);
@@ -500,11 +537,8 @@ public final class ThirdVelocityCommand implements SimpleCommand {
       usage(source, "ip");
       return done();
     }
-    InetAddress address = resolveAddress(source, args[0]);
-    if (address == null) {
-      return done();
-    }
-    return core.alts().address(address).thenAccept(report -> {
+    return resolveKnownAddress(source, args[0]).thenCompose(address -> address == null ? done()
+        : core.alts().address(address).thenAccept(report -> {
       head(source, "<white><b><ip></b></white> <dark_gray>· accounts:</dark_gray> <white><count>", "ip", report.address(),
           "count", Integer.toString(report.accounts().size()));
       for (Observation account : report.accounts().stream().limit(25).toList()) {
@@ -517,7 +551,7 @@ public final class ThirdVelocityCommand implements SimpleCommand {
         row(source, true, "Related addresses", "<white><list>", "list", report.relatedAddresses().entrySet().stream()
             .limit(15).map(e -> e.getKey() + " (" + e.getValue() + ")").collect(Collectors.joining(", ")));
       }
-    });
+    }));
   }
 
   private CompletableFuture<?> history(CommandSource source, String[] args) {
