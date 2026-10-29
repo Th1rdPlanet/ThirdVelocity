@@ -391,12 +391,12 @@ public final class ProtectionManager implements ProtectionService {
         String output = new String(process.getInputStream().readAllBytes()).trim();
         if (!process.waitFor(10, TimeUnit.SECONDS)) {
           process.destroyForcibly();
-          LOGGER.warn("Firewall command timed out: {}", command.get(0));
+          LOGGER.warn("[!] firewall » команда {} не ответила вовремя", command.get(0));
         } else if (process.exitValue() != 0) {
-          LOGGER.warn("Firewall command exited with {}: {}", process.exitValue(), output);
+          LOGGER.warn("[!] firewall » команда завершилась с кодом {}: {}", process.exitValue(), output);
         }
       } catch (Exception e) {
-        LOGGER.warn("Firewall command failed: {}", e.getMessage());
+        LOGGER.warn("[!] firewall » команда не запустилась: {}", e.getMessage());
       } finally {
         if (Thread.currentThread().isInterrupted()) {
           Thread.currentThread().interrupt();
@@ -587,9 +587,9 @@ public final class ProtectionManager implements ProtectionService {
     }
     level = next;
     if (next.compareTo(previous) > 0) {
-      LOGGER.warn("Attack level {} -> {} ({})", previous, next, reason);
+      LOGGER.warn("[!] shield   » {} ──▶ {}  ({})", previous, next, reason);
     } else {
-      LOGGER.info("Attack level {} -> {} ({})", previous, next, reason);
+      LOGGER.info("[!] shield   » {} ──▶ {}  ({})", previous, next, reason);
     }
     core.fire(new AttackLevelChangedEvent(previous, next, reason));
   }

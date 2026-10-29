@@ -168,7 +168,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     try {
       core.loadConfigs();
       if (!core.mainConfig.bool("enabled", true)) {
-        LOGGER.warn("ThirdVelocity core is disabled in thirdvelocity/config.yml");
+        LOGGER.warn("[-] core     » ядро выключено в thirdvelocity/config.yml");
         core.scheduler.shutdownNow();
         core.worker.shutdownNow();
         return;
@@ -189,7 +189,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     core.registerListeners();
     core.schedule();
     ThirdVelocityCommand.register(core);
-    LOGGER.info("ThirdVelocity {} ready • storage: {} • bans: {} • attack level: {}", VERSION,
+    LOGGER.info("[+] ready    » ThirdVelocity {}  storage:{}  bans:{}  shield:{}", VERSION,
         core.database.dialect(), core.bans.active().size(), core.protection.level());
   }
 
@@ -248,7 +248,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     }
     java.nio.file.Files.move(legacy, directory.resolve("intel.yml.old"),
         java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-    LOGGER.warn("intel.yml was split into geoip.yml and ip-lists.yml; the old file is kept as intel.yml.old");
+    LOGGER.warn("[~] config   » intel.yml разделён на geoip.yml и ip-lists.yml (старый сохранён как intel.yml.old)");
   }
 
   /**
@@ -260,7 +260,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
     loadConfigs();
     geoIp.updateIfStale();
     ipLists.updateIfStale();
-    LOGGER.info("ThirdVelocity configuration reloaded");
+    LOGGER.info("[+] config   » перечитан");
   }
 
   private void schedule() {
@@ -284,7 +284,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
       try {
         task.run();
       } catch (RuntimeException e) {
-        LOGGER.warn("ThirdVelocity background task failed", e);
+        LOGGER.warn("[!] task     » фоновая задача упала", e);
       }
     };
   }
@@ -335,7 +335,7 @@ public final class ThirdVelocityCore implements ThirdVelocityApi {
         .thenCompose(ignored -> alts.alts(player.getUsername()))
         .thenAccept(report -> onAltReport(player, report))
         .exceptionally(error -> {
-          LOGGER.warn("alt check for {} failed: {}", player.getUsername(), error.getMessage());
+          LOGGER.warn("[!] alts     » проверка {} не удалась: {}", player.getUsername(), error.getMessage());
           return null;
         });
   }

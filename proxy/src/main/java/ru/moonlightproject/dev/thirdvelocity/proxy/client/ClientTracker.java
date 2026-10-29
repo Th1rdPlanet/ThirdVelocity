@@ -223,7 +223,7 @@ public final class ClientTracker implements ClientService {
       core.reputation().report(address, "client." + signal);
     }
     if (logDetections) {
-      LOGGER.info("{}: behaviour signal {}", s.name, signal);
+      LOGGER.info("[!] client   » {} » поведенческий сигнал {}", s.name, signal);
     }
     if (action.equals("flag")) {
       flaggedNames.put(s.name.toLowerCase(Locale.ROOT), Boolean.TRUE);
@@ -511,7 +511,7 @@ public final class ClientTracker implements ClientService {
       info = snapshot(s);
       s.snapshot = info;
       if (changed && logDetections && !detections.isEmpty()) {
-        LOGGER.info("{} detected as {}", s.name,
+        LOGGER.info("[*] client   » {} » {}", s.name,
             detections.stream().map(Detection::label).toList());
       }
       // Debounce: settings, brand and channels arrive within a moment of each other.
@@ -521,7 +521,7 @@ public final class ClientTracker implements ClientService {
       s.pending = core.scheduler().schedule(() -> settle(s), 3, TimeUnit.SECONDS);
     }
     for (Rule rule : kicks) {
-      LOGGER.info("kicking {} by client rule {}", s.name, rule.id());
+      LOGGER.info("[-] client   » {} кикнут правилом {}", s.name, rule.id());
       core.reputation().report(player.getRemoteAddress().getAddress(), "client.kicked");
       player.disconnect(core.messages().render(rule.message().isBlank() ? "client-kick" : "client-kick-custom",
           "rule", rule.label(), "message", rule.message()));

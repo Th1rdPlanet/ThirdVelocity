@@ -140,7 +140,7 @@ public final class IpListManager implements IpListService {
       core.onIntelChanged();
     } catch (IOException e) {
       state.lastError = e.getMessage();
-      LOGGER.warn("cannot read IP list {}: {}", source.name(), e.getMessage());
+      LOGGER.warn("[!] lists    » не читается {}: {}", source.name(), e.getMessage());
     }
   }
 
@@ -261,10 +261,10 @@ public final class IpListManager implements IpListService {
         throw new IOException("HTTP " + status + " for " + Downloader.redact(source.url()));
       }
       load(source, state);
-      LOGGER.info("IP list {} updated ({} networks)", source.name(), state.set.networks());
+      LOGGER.info("[+] lists    » {} обновлён, сетей: {}", source.name(), state.set.networks());
     } catch (Exception e) {
       state.lastError = e.getMessage();
-      LOGGER.warn("IP list {} update failed: {}", source.name(), e.getMessage());
+      LOGGER.warn("[!] lists    » {} не обновился: {}", source.name(), e.getMessage());
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }

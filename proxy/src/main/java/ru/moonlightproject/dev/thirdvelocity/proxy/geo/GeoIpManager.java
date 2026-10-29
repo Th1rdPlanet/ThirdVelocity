@@ -194,7 +194,7 @@ public final class GeoIpManager implements GeoIpService {
     String auth = source.maxmindAuth() ? basicAuth : null;
     if (source.maxmindAuth() && auth == null) {
       state.lastError = "maxmind-account-id and maxmind-license-key are not set";
-      LOGGER.warn("GeoIP {}: {}", source.name(), state.lastError);
+      LOGGER.warn("[!] geoip    » {}: {}", source.name(), state.lastError);
       return;
     }
     Path temp = source.file().resolveSibling(source.file().getFileName() + ".new");
@@ -219,11 +219,11 @@ public final class GeoIpManager implements GeoIpService {
       Files.move(temp, source.file(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
           java.nio.file.StandardCopyOption.ATOMIC_MOVE);
       swap(state, open(source.file()));
-      LOGGER.info("GeoIP {} updated from {} (build {})", source.name(),
+      LOGGER.info("[+] geoip    » {} обновлена из {} (сборка {})", source.name(),
           Downloader.redact(url), state.buildTime);
     } catch (Exception e) {
       state.lastError = e.getMessage();
-      LOGGER.warn("GeoIP {} update failed: {}", source.name(), e.getMessage());
+      LOGGER.warn("[!] geoip    » {} не обновилась: {}", source.name(), e.getMessage());
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }

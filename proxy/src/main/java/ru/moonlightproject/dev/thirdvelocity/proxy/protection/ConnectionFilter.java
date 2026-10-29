@@ -202,7 +202,7 @@ public final class ConnectionFilter {
     core.protectionManager().countBlocked();
     count(reason);
     if (blockLog == BlockLog.EACH) {
-      LOGGER.info("refused {} at {}: {} {}", address == null ? "?" : address.getHostAddress(),
+      LOGGER.info("[-] drop     » {} на этапе {}: {} {}", address == null ? "?" : address.getHostAddress(),
           stage, reason, detail);
     }
     if (resetOnDrop) {
@@ -234,7 +234,9 @@ public final class ConnectionFilter {
       }
     });
     if (!counts.isEmpty()) {
-      LOGGER.info("refused connections in the last 30s: {}", counts);
+      StringBuilder line = new StringBuilder();
+      counts.forEach((reason, value) -> line.append(line.isEmpty() ? "" : "  ").append(reason).append(' ').append(value));
+      LOGGER.info("[-] drop     » за 30с: {}", line);
     }
   }
 

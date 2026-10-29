@@ -250,7 +250,7 @@ public final class AltManager implements AltService {
       core.protectionManager().knownAddresses().replace(known);
       core.protectionManager().authenticatedAddresses().replace(authenticated);
       return known.size();
-    }).thenAccept(count -> LOGGER.info("{} known addresses loaded", count));
+    }).thenAccept(count -> LOGGER.info("[*] history  » известных адресов: {}", count));
   }
 
   /**
@@ -287,7 +287,7 @@ public final class AltManager implements AltService {
       core.reputation().taintedAddresses().replace(addresses);
       core.reputation().invalidate();
     }).exceptionally(error -> {
-      LOGGER.warn("cannot rebuild banned-account addresses: {}", error.getMessage());
+      LOGGER.warn("[!] alts     » адреса забаненных не пересобраны: {}", error.getMessage());
       return null;
     });
   }
@@ -318,7 +318,7 @@ public final class AltManager implements AltService {
     core.protectionManager().authenticatedAddresses().add(canonical);
     core.reputation().invalidate();
     upsert(name, canonical, true).exceptionally(error -> {
-      LOGGER.warn("cannot record authenticated login: {}", error.getMessage());
+      LOGGER.warn("[!] alts     » подтверждённый вход не записан: {}", error.getMessage());
       return null;
     });
   }
@@ -389,7 +389,7 @@ public final class AltManager implements AltService {
         }
       }
       if (error != null) {
-        LOGGER.warn("Cannot store {} login records: {}", batch.size(), error.getMessage());
+        LOGGER.warn("[!] alts     » {} записей входа не сохранены: {}", batch.size(), error.getMessage());
       }
     });
   }
@@ -417,7 +417,7 @@ public final class AltManager implements AltService {
       }
       return null;
     }).exceptionally(error -> {
-      LOGGER.warn("cannot store fingerprint: {}", error.getMessage());
+      LOGGER.warn("[!] alts     » отпечаток не сохранён: {}", error.getMessage());
       return null;
     });
   }
@@ -438,7 +438,7 @@ public final class AltManager implements AltService {
       return removed;
     }).thenAccept(removed -> {
       if (removed > 0) {
-        LOGGER.info("removed {} expired login records", removed);
+        LOGGER.info("[*] history  » удалено старых записей: {}", removed);
       }
     });
   }

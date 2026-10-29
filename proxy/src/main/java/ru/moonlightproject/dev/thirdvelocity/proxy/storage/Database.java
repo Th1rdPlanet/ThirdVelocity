@@ -267,7 +267,7 @@ public final class Database implements AutoCloseable {
     executor.shutdown();
     try {
       if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-        LOGGER.warn("ThirdVelocity database workers did not finish in time");
+        LOGGER.warn("[!] db       » потоки БД не завершились вовремя");
         executor.shutdownNow();
       }
     } catch (InterruptedException e) {
