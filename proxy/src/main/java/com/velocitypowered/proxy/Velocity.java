@@ -52,6 +52,13 @@ public class Velocity {
     if (!VelocityProperties.hasProperty("io.netty.leakDetection.level")) {
       ResourceLeakDetector.setLevel(Level.DISABLED);
     }
+
+    // ThirdVelocity: Guice 7 defines generated classes through sun.misc.Unsafe, which Java 24+
+    // reports as terminally deprecated. Velocity needs no method interception, so plain
+    // reflection is enough. Pass -Dguice_bytecode_gen_option=ENABLED to restore the old mode.
+    if (System.getProperty("guice_bytecode_gen_option") == null) {
+      System.setProperty("guice_bytecode_gen_option", "DISABLED");
+    }
   }
 
   /**
