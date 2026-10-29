@@ -687,6 +687,36 @@ public final class ThirdVelocityCommand implements SimpleCommand {
     return done();
   }
 
+  /** Adds names from the login history to the online players wherever a player name is expected. */
+  @Override
+  public CompletableFuture<List<String>> suggestAsync(Invocation invocation) {
+    List<String> base = suggest(invocation);
+    String[] args = invocation.arguments();
+    if (!namePosition(invocation.source(), args)) {
+      return CompletableFuture.completedFuture(base);
+    }
+    return core.altManager().knownNames(args[args.length - 1], 30).<List<String>>thenApply(names -> {
+      Set<String> merged = new java.util.LinkedHashSet<>(base);
+      Set<String> seen = base.stream().map(n -> n.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+      names.stream().filter(n -> seen.add(n.toLowerCase(Locale.ROOT))).forEach(merged::add);
+      return List.copyOf(merged);
+    }).exceptionally(failure -> base);
+  }
+
+  private boolean namePosition(CommandSource source, String[] args) {
+    if (args.length < 2) {
+      return false;
+    }
+    String sub = args[0].toLowerCase(Locale.ROOT);
+    if (!allowed(source, sub) || sub.equals("client")) {
+      return false;
+    }
+    if (args.length == 2) {
+      return !List.of("geoip", "lists", "attack", "reload", "bans", "baninfo", "unblock").contains(sub);
+    }
+    return args.length == 3 && (sub.equals("ban") || sub.equals("unban")) && args[1].equalsIgnoreCase("name");
+  }
+
   @Override
   public List<String> suggest(Invocation invocation) {
     String[] args = invocation.arguments();

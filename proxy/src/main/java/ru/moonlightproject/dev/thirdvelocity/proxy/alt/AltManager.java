@@ -692,6 +692,31 @@ public final class AltManager implements AltService {
     return core.database().call(c -> rows(c, "name_lc", lower, 500).stream().map(AltManager::observation).toList());
   }
 
+  /**
+   * Known names that start with a prefix, most recently seen first. Used for command completion.
+   *
+   * @param prefix name prefix
+   * @param limit maximum number of names
+   * @return names in their last seen spelling
+   */
+  public CompletableFuture<List<String>> knownNames(String prefix, int limit) {
+    String pattern = prefix.toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+    return core.database().call(c -> {
+      try (PreparedStatement ps = c.prepareStatement("SELECT name_lc, MAX(name) AS name, MAX(last_seen) AS seen"
+          + " FROM tv_seen WHERE name_lc LIKE ? ESCAPE '!' GROUP BY name_lc ORDER BY seen DESC LIMIT ?")) {
+        ps.setString(1, pattern);
+        ps.setInt(2, limit);
+        List<String> names = new ArrayList<>();
+        try (ResultSet rs = ps.executeQuery()) {
+          while (rs.next()) {
+            names.add(rs.getString("name"));
+          }
+        }
+        return names;
+      }
+    });
+  }
+
   private static Observation observation(Row row) {
     return new Observation(row.name(), row.ip(), Instant.ofEpochMilli(row.firstSeen()),
         Instant.ofEpochMilli(row.lastSeen()), row.logins(), row.authenticated());
