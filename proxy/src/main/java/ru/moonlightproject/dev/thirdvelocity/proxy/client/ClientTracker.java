@@ -112,6 +112,8 @@ public final class ClientTracker implements ClientService {
     int skinParts = -1;
     boolean mainHandRight = true;
     boolean settingsReceived;
+    /** Set by {@link #start}; data recorded earlier waits for it. */
+    boolean started;
     List<Detection> detections = List.of();
     final Set<String> actedRules = new LinkedHashSet<>();
     final Set<String> behaviour = new LinkedHashSet<>();
@@ -290,9 +292,7 @@ public final class ClientTracker implements ClientService {
    * @param address address text
    */
   public void start(Player player, String address) {
-    Session s = new Session();
-    s.playerId = player.getUniqueId();
-    s.name = player.getUsername();
+    Session s = sessions.computeIfAbsent(player.getUniqueId(), id -> newSession(player));
     LoginData data = logins.asMap().remove(loginKey(player.getUsername(), address));
     s.protocol = player.getProtocolVersion().getProtocol();
     s.version = player.getProtocolVersion().getMostRecentSupportedVersion();
@@ -309,11 +309,43 @@ public final class ClientTracker implements ClientService {
     if (player.getModInfo().isPresent()) {
       addMods(s, player.getModInfo().get());
     }
-    sessions.put(s.playerId, s);
+    synchronized (s) {
+      s.started = true;
+    }
     if (behaviourEnabled) {
       core.scheduler().schedule(() -> checkBehaviour(s, player), behaviourDelayMillis, TimeUnit.MILLISECONDS);
     }
     update(s, player);
+  }
+
+  private static Session newSession(Player player) {
+    Session s = new Session();
+    s.playerId = player.getUniqueId();
+    s.name = player.getUsername();
+    return s;
+  }
+
+  /**
+   * Brand, settings and channels arrive in the configuration phase, often before
+   * PostLoginEvent: plugins such as Selene hold the login while they talk to their backend.
+   * Data recorded this early is kept and evaluated once {@link #start} runs.
+   */
+  private @Nullable Session session(Player player) {
+    Session s = sessions.get(player.getUniqueId());
+    if (s != null || !player.isActive()) {
+      return s;
+    }
+    return sessions.computeIfAbsent(player.getUniqueId(), id -> newSession(player));
+  }
+
+  private void updateIfStarted(Session s, Player player) {
+    boolean started;
+    synchronized (s) {
+      started = s.started;
+    }
+    if (started) {
+      update(s, player);
+    }
   }
 
   /**
@@ -342,14 +374,14 @@ public final class ClientTracker implements ClientService {
    * @param brand brand
    */
   public void brand(Player player, String brand) {
-    Session s = sessions.get(player.getUniqueId());
+    Session s = session(player);
     if (s == null) {
       return;
     }
     synchronized (s) {
       s.brand = brand.length() > 128 ? brand.substring(0, 128) : brand;
     }
-    update(s, player);
+    updateIfStarted(s, player);
   }
 
   /**
@@ -359,7 +391,7 @@ public final class ClientTracker implements ClientService {
    * @param channels channel ids
    */
   public void channels(Player player, Collection<String> channels) {
-    Session s = sessions.get(player.getUniqueId());
+    Session s = session(player);
     if (s == null) {
       return;
     }
@@ -377,7 +409,7 @@ public final class ClientTracker implements ClientService {
         }
       }
     }
-    update(s, player);
+    updateIfStarted(s, player);
   }
 
   /**
@@ -387,14 +419,14 @@ public final class ClientTracker implements ClientService {
    * @param info mod list
    */
   public void modInfo(Player player, ModInfo info) {
-    Session s = sessions.get(player.getUniqueId());
+    Session s = session(player);
     if (s == null) {
       return;
     }
     synchronized (s) {
       addMods(s, info);
     }
-    update(s, player);
+    updateIfStarted(s, player);
   }
 
   private static void addMods(Session s, ModInfo info) {
@@ -413,7 +445,7 @@ public final class ClientTracker implements ClientService {
    * @param settings settings
    */
   public void settings(Player player, PlayerSettings settings) {
-    Session s = sessions.get(player.getUniqueId());
+    Session s = session(player);
     if (s == null) {
       return;
     }
@@ -432,7 +464,7 @@ public final class ClientTracker implements ClientService {
       s.mainHandRight = settings.getMainHand() == PlayerSettings.MainHand.RIGHT;
       s.settingsReceived = true;
     }
-    update(s, player);
+    updateIfStarted(s, player);
   }
 
   private static int mask(SkinParts parts) {
