@@ -219,11 +219,11 @@ public final class GeoIpManager implements GeoIpService {
       Files.move(temp, source.file(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
           java.nio.file.StandardCopyOption.ATOMIC_MOVE);
       swap(state, open(source.file()));
-      LOGGER.info("[+] geoip    » {} обновлена из {} (сборка {})", source.name(),
+      LOGGER.info("[+] geoip    » {} updated from {}  build:{}", source.name(),
           Downloader.redact(url), state.buildTime);
     } catch (Exception e) {
       state.lastError = e.getMessage();
-      LOGGER.warn("[x] geoip    » {} не обновилась: {}", source.name(), e.getMessage());
+      LOGGER.warn("[x] geoip    » update failed for {}: {}", source.name(), e.getMessage());
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }

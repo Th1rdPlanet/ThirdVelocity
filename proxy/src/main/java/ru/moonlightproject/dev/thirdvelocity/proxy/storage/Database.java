@@ -267,7 +267,7 @@ public final class Database implements AutoCloseable {
     executor.shutdown();
     try {
       if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-        LOGGER.warn("[x] db       » потоки БД не завершились вовремя");
+        LOGGER.warn("[x] db       » worker shutdown timed out");
         executor.shutdownNow();
       }
     } catch (InterruptedException e) {

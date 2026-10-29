@@ -250,7 +250,7 @@ public final class AltManager implements AltService {
       core.protectionManager().knownAddresses().replace(known);
       core.protectionManager().authenticatedAddresses().replace(authenticated);
       return known.size();
-    }).thenAccept(count -> LOGGER.info("[*] history  » известных адресов: {}", count));
+    }).thenAccept(count -> LOGGER.info("[*] history  » known addresses:{}", count));
   }
 
   /**
@@ -287,7 +287,7 @@ public final class AltManager implements AltService {
       core.reputation().taintedAddresses().replace(addresses);
       core.reputation().invalidate();
     }).exceptionally(error -> {
-      LOGGER.warn("[x] alts     » адреса забаненных не пересобраны: {}", error.getMessage());
+      LOGGER.warn("[x] alts     » banned-IP index rebuild failed: {}", error.getMessage());
       return null;
     });
   }
@@ -318,7 +318,7 @@ public final class AltManager implements AltService {
     core.protectionManager().authenticatedAddresses().add(canonical);
     core.reputation().invalidate();
     upsert(name, canonical, true).exceptionally(error -> {
-      LOGGER.warn("[x] alts     » подтверждённый вход не записан: {}", error.getMessage());
+      LOGGER.warn("[x] alts     » verified login write failed: {}", error.getMessage());
       return null;
     });
   }
@@ -389,7 +389,7 @@ public final class AltManager implements AltService {
         }
       }
       if (error != null) {
-        LOGGER.warn("[x] alts     » {} записей входа не сохранены: {}", batch.size(), error.getMessage());
+        LOGGER.warn("[x] alts     » batch write failed  records:{}  error:{}", batch.size(), error.getMessage());
       }
     });
   }
@@ -417,7 +417,7 @@ public final class AltManager implements AltService {
       }
       return null;
     }).exceptionally(error -> {
-      LOGGER.warn("[x] alts     » отпечаток не сохранён: {}", error.getMessage());
+      LOGGER.warn("[x] alts     » fingerprint write failed: {}", error.getMessage());
       return null;
     });
   }
@@ -438,7 +438,7 @@ public final class AltManager implements AltService {
       return removed;
     }).thenAccept(removed -> {
       if (removed > 0) {
-        LOGGER.info("[*] history  » удалено старых записей: {}", removed);
+        LOGGER.info("[*] history  » stale addresses purged:{}", removed);
       }
     });
   }

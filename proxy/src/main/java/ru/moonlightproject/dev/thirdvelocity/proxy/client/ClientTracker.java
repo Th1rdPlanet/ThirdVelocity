@@ -223,7 +223,7 @@ public final class ClientTracker implements ClientService {
       core.reputation().report(address, "client." + signal);
     }
     if (logDetections) {
-      LOGGER.info("[!] client   » {} » поведенческий сигнал {}", s.name, signal);
+      LOGGER.info("[!] client   » {} » behavioural signal:{}", s.name, signal);
     }
     if (action.equals("flag")) {
       flaggedNames.put(s.name.toLowerCase(Locale.ROOT), Boolean.TRUE);
@@ -521,7 +521,7 @@ public final class ClientTracker implements ClientService {
       s.pending = core.scheduler().schedule(() -> settle(s), 3, TimeUnit.SECONDS);
     }
     for (Rule rule : kicks) {
-      LOGGER.info("[-] client   » {} кикнут правилом {}", s.name, rule.id());
+      LOGGER.info("[-] client   » {} kicked by rule:{}", s.name, rule.id());
       core.reputation().report(player.getRemoteAddress().getAddress(), "client.kicked");
       player.disconnect(core.messages().render(rule.message().isBlank() ? "client-kick" : "client-kick-custom",
           "rule", rule.label(), "message", rule.message()));

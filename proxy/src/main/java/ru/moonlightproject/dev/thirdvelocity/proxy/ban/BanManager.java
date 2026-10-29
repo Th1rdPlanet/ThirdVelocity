@@ -131,7 +131,7 @@ public final class BanManager implements BanService {
       loaded.forEach(ban -> active.put(ban.id(), ban));
       lastSync = started;
       rebuild();
-      LOGGER.info("[*] bans     » активных банов: {}", loaded.size());
+      LOGGER.info("[*] bans     » active:{}", loaded.size());
     });
   }
 
@@ -165,7 +165,7 @@ public final class BanManager implements BanService {
           if (known == null) {
             active.put(ban.id(), ban);
             dirty = true;
-            LOGGER.info("[+] ban      » #{} из общей БД » {} {} ({})", ban.id(), ban.target().kind(),
+            LOGGER.info("[+] ban      » #{} imported from shared DB » {} {} ({})", ban.id(), ban.target().kind(),
                 ban.target().value(), ban.actor());
             core.fire(new BanCreatedEvent(ban, true));
             applySideEffects(ban, true);
@@ -183,7 +183,7 @@ public final class BanManager implements BanService {
         rebuild();
       }
     }).exceptionally(error -> {
-      LOGGER.warn("[x] bans     » синхронизация не удалась: {}", rootMessage(error));
+      LOGGER.warn("[x] bans     » sync failed: {}", rootMessage(error));
       return null;
     });
   }
@@ -227,7 +227,7 @@ public final class BanManager implements BanService {
       return new Ban(rs.getLong("id"), target, rs.getString("reason"), rs.getString("actor"),
           Instant.ofEpochMilli(rs.getLong("created_at")), expiresAt, revokedAt, rs.getString("revoked_by"));
     } catch (IllegalArgumentException e) {
-      LOGGER.warn("[x] bans     » пропущен битый бан #{}: {}", rs.getLong("id"), e.getMessage());
+      LOGGER.warn("[x] bans     » corrupt entry skipped #{}: {}", rs.getLong("id"), e.getMessage());
       return null;
     }
   }
@@ -320,10 +320,10 @@ public final class BanManager implements BanService {
         String output = new String(process.getInputStream().readAllBytes()).trim();
         int code = process.waitFor();
         if (code != 0) {
-          LOGGER.warn("[x] firewall » {} завершилась с кодом {}: {}", command, code, output);
+          LOGGER.warn("[x] firewall » {} exit:{}  output:{}", command, code, output);
         }
       } catch (Exception e) {
-        LOGGER.warn("[x] firewall » {} не запустилась: {}", command, e.getMessage());
+        LOGGER.warn("[x] firewall » {} launch failed: {}", command, e.getMessage());
       }
     });
   }
@@ -343,7 +343,7 @@ public final class BanManager implements BanService {
       }
       Ban revoked = new Ban(old.id(), old.target(), old.reason(), old.actor(), old.createdAt(),
           old.expiresAt(), Instant.ofEpochMilli(now), by);
-      LOGGER.info("[-] unban    » {} снял бан #{} ({} {})", by, id, old.target().kind(), old.target().value());
+      LOGGER.info("[-] unban    » {} removed #{} ({} {})", by, id, old.target().kind(), old.target().value());
       core.fire(new BanRevokedEvent(revoked, false));
       runFirewall(firewallUnban, revoked);
       return Optional.of(revoked);
